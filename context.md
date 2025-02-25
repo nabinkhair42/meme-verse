@@ -66,7 +66,7 @@ Image Upload & Storage APIs
 ImgBB API - Free image hosting for meme uploads (Docs: https://imgbb.com/api)
 
 4. Skills Tested
-✅ UI/UX Design: Aesthetically pleasing and user-friendly layout.
+ ✅ UI/UX Design: Aesthetically pleasing and user-friendly layout.
  ✅ Animations: Smooth transitions, page loads, and UI feedback.
  ✅ State Management: Efficient use of Redux Toolkit or Context API.
  ✅ API Handling: Efficient API calls with caching and loading states.
