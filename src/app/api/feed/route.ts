@@ -47,7 +47,6 @@ export async function GET(request: NextRequest) {
           
           // Custom sort: first by category match, then by recency
           sortOption = { 
-            categoryMatch: -1, // This will be added in the aggregation
             createdAt: -1 
           };
         }
@@ -90,7 +89,6 @@ export async function GET(request: NextRequest) {
       // Standard feed
       memes = await db.collection("memes")
         .find(query)
-        .sort(sortOption)
         .skip(skip)
         .limit(limit)
         .toArray();

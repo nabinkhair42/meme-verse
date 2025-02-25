@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
 import clientPromise from "@/lib/mongodb";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+const JWT_SECRET = process.env.JWT_SECRET!;
 
 export async function verifyAuth(request: NextRequest) {
   try {
@@ -52,8 +52,6 @@ export async function verifyAuth(request: NextRequest) {
       const client = await clientPromise;
       const db = client.db("meme-verse");
       
-      console.log(`Looking for user with id: ${decoded.id}`);
-      
       // Try to find by id or _id
       const user = await db.collection("users").findOne({
         $or: [
@@ -63,27 +61,17 @@ export async function verifyAuth(request: NextRequest) {
       });
       
       if (!user) {
-        console.log(`User not found with id: ${decoded.id}`);
         return null;
       }
       
-      console.log(`User found: ${user.username}`);
       
       // Return user without password
       const { password, ...userWithoutPassword } = user;
       return userWithoutPassword;
     } catch (jwtError: any) {
-      if (jwtError.name === 'TokenExpiredError') {
-        console.error(`Token expired at ${jwtError.expiredAt}`);
-      } else if (jwtError.name === 'JsonWebTokenError') {
-        console.error(`JWT error: ${jwtError.message}`);
-      } else {
-        console.error("JWT verification error:", jwtError.message);
-      }
       return null;
     }
   } catch (error) {
-    console.error("Auth verification error:", error);
     return null;
   }
 } 

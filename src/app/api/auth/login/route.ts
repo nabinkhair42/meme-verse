@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { successResponse, errorResponse } from "@/lib/apiResponse";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
@@ -11,7 +12,7 @@ export async function POST(request: NextRequest) {
     
     if (!email || !password) {
       return NextResponse.json(
-        { error: "Email and password are required" },
+        errorResponse("Email and password are required", 400),
         { status: 400 }
       );
     }
@@ -23,9 +24,8 @@ export async function POST(request: NextRequest) {
     const user = await db.collection("users").findOne({ email });
     
     if (!user) {
-      console.log(`Login attempt failed: User with email ${email} not found`);
       return NextResponse.json(
-        { error: "Invalid credentials" },
+        errorResponse("Invalid credentials", 401),
         { status: 401 }
       );
     }
@@ -34,37 +34,34 @@ export async function POST(request: NextRequest) {
     const isMatch = await bcrypt.compare(password, user.password);
     
     if (!isMatch) {
-      console.log(`Login attempt failed: Invalid password for user ${email}`);
       return NextResponse.json(
-        { error: "Invalid credentials" },
+        errorResponse("Invalid credentials", 401),
         { status: 401 }
       );
     }
     
     // Create token
     const token = jwt.sign(
-      { 
-        id: user.id || user._id, 
-        email: user.email, 
-        username: user.username 
-      },
+      { id: user._id, email: user.email, username: user.username },
       JWT_SECRET,
       { expiresIn: "7d" }
     );
     
-    console.log(`User ${email} logged in successfully`);
-    
     // Remove password from user object
     const { password: _, ...userWithoutPassword } = user;
     
-    return NextResponse.json({
-      token,
-      user: userWithoutPassword
-    });
+    return NextResponse.json(
+      successResponse(
+        { token, user: userWithoutPassword },
+        "Login successful",
+        200
+      ),
+      { status: 200 }
+    );
   } catch (error) {
     console.error("Login error:", error);
     return NextResponse.json(
-      { error: "Login failed", details: error.message },
+      errorResponse("Login failed", 500),
       { status: 500 }
     );
   }

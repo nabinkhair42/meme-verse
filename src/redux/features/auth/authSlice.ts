@@ -1,7 +1,8 @@
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
 import { authService } from "@/services/api";
+import { toast } from "sonner";
 
-interface User {
+export interface User {
   id: string;
   username: string;
   email: string;
@@ -10,7 +11,7 @@ interface User {
   joinDate: string;
 }
 
-interface AuthState {
+export interface AuthState {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
@@ -54,14 +55,12 @@ export const register = createAsyncThunk(
   async (userData: { username: string; email: string; password: string }, { rejectWithValue }) => {
     try {
       const response = await authService.register(userData);
-      
-      // Save token and user to localStorage
       localStorage.setItem('token', response.token);
       localStorage.setItem('user', JSON.stringify(response.user));
       
       return response;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Registration failed');
+      return rejectWithValue(error.message || "Registration failed");
     }
   }
 );
@@ -71,25 +70,19 @@ export const login = createAsyncThunk(
   "auth/login",
   async (credentials: { email: string; password: string }, { rejectWithValue }) => {
     try {
-      console.log('Attempting login with:', credentials.email);
       const response = await authService.login(credentials);
       
-      // Validate response
       if (!response.token || !response.user) {
-        console.error('Invalid login response:', response);
         return rejectWithValue('Invalid response from server');
       }
       
-      console.log('Login successful, storing token and user data');
-      
-      // Save token and user to localStorage
+      toast.success('Login successful');
       localStorage.setItem('token', response.token);
       localStorage.setItem('user', JSON.stringify(response.user));
       
       return response;
     } catch (error: any) {
-      console.error('Login error:', error);
-      return rejectWithValue(error.response?.data?.message || 'Login failed');
+      return rejectWithValue(error.message || "Login failed");
     }
   }
 );

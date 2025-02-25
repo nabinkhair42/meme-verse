@@ -63,18 +63,24 @@ export default function RegisterPage() {
       return;
     }
     
-    // Password validation
     if (password.length < 6) {
       toast.error("Password must be at least 6 characters");
       return;
     }
     
-    await dispatch(register({ username, email, password }));
+    // Dispatch the register action and await its result
+    const result = await dispatch(register({ username, email, password }));
     
-    // If successful, redirect to login
-    if (!error) {
+    // Check if the action was fulfilled or rejected
+    if (register.fulfilled.match(result)) {
       toast.success("Registration successful! Please log in.");
       router.push("/login");
+    } else if (register.rejected.match(result)) {
+      console.log("DETECTED ERROR:",result);
+      // Display the specific error message if available
+      const errorMessage = result.payload as string;
+      toast.error(errorMessage);
+      dispatch(clearError());
     }
   };
   

@@ -1,5 +1,6 @@
 import axios, { InternalAxiosRequestConfig } from "axios";
 import { toast } from "sonner";
+import { ApiResponse } from "@/lib/apiResponse";
 
 const IMGBB_API_KEY = process.env.NEXT_PUBLIC_IMGBB_API_KEY;
 
@@ -44,12 +45,6 @@ export interface PaginatedResponse<T> {
     limit: number;
     totalPages: number;
   };
-}
-
-export interface ApiResponse<T> {
-  data: T;
-  message?: string;
-  success: boolean;
 }
 
 // Define the MemeTemplate interface
@@ -749,21 +744,35 @@ export const authService = {
   
   login: async (credentials: { email: string; password: string }): Promise<{ token: string; user: User }> => {
     try {
-      const response = await api.post('/api/auth/login', credentials);
-      return response.data;
-    } catch (error) {
-      console.error("Error logging in:", error);
-      throw error;
+      const response = await api.post<ApiResponse>('/api/auth/login', credentials);
+      
+      if (!response.data.success) {
+        throw new Error(response.data.error || "Login failed");
+      }
+      
+      return response.data.data;
+    } catch (error: any) {
+      if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+      throw new Error(error.message || "Login failed");
     }
   },
   
-  register: async (userData: { username: string; email: string; password: string }): Promise<{ token: string; user: User }> => {
+  register: async (userData: { username: string; email: string; password: string }) => {
     try {
-      const response = await api.post('/api/auth/register', userData);
-      return response.data;
-    } catch (error) {
-      console.error("Error registering:", error);
-      throw error;
+      const response = await axios.post<ApiResponse>("/api/auth/register", userData);
+      
+      if (!response.data.success) {
+        throw new Error(response.data.error || "Registration failed");
+      }
+      
+      return response.data.data;
+    } catch (error: any) {
+      if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+      throw new Error(error.message || "Registration failed");
     }
   },
   

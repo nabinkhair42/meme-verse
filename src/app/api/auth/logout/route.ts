@@ -9,9 +9,8 @@ export async function POST() {
     
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error logging out:", error);
     return NextResponse.json(
-      { error: "Failed to log out" },
+      { error: (error as Error).message },
       { status: 500 }
     );
   }

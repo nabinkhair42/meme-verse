@@ -4,7 +4,14 @@ import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "@/redux/store";
 import { login, clearError } from "@/redux/features/auth/authSlice";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -17,20 +24,22 @@ import { motion } from "framer-motion";
 export default function LoginPage() {
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
-  const { isAuthenticated, loading, error } = useSelector((state: RootState) => state.auth);
-  
+  const { isAuthenticated, loading, error } = useSelector(
+    (state: RootState) => state.auth
+  );
+
   const [formData, setFormData] = useState({
     email: "",
-    password: ""
+    password: "",
   });
-  
+
   useEffect(() => {
     // If already authenticated, redirect to home
     if (isAuthenticated) {
       router.push("/");
     }
   }, [isAuthenticated, router]);
-  
+
   useEffect(() => {
     // Show error toast if there's an error
     if (error) {
@@ -38,14 +47,14 @@ export default function LoginPage() {
       dispatch(clearError());
     }
   }, [error, dispatch]);
-  
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     });
   };
-  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -56,9 +65,21 @@ export default function LoginPage() {
       return;
     }
     
-    await dispatch(login(formData));
+    // Dispatch the login action and await its result
+    const result = await dispatch(login({ email, password }));
+    
+    // Check if the action was fulfilled or rejected
+    if (login.fulfilled.match(result)) {
+      toast.success("Login successful!");
+      router.push("/");
+    } else if (login.rejected.match(result)) {
+      // Display the specific error message if available
+      const errorMessage = result.payload as string;
+      toast.error(errorMessage);
+      dispatch(clearError());
+    }
   };
-  
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12">
       <motion.div
@@ -69,7 +90,9 @@ export default function LoginPage() {
       >
         <Card>
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">Welcome back!</CardTitle>
+            <CardTitle className="text-2xl text-center">
+              Welcome back!
+            </CardTitle>
             <CardDescription className="text-center">
               Enter your credentials to sign in to your account
             </CardDescription>
@@ -92,8 +115,8 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
-                  <Link 
-                    href="/forgot-password" 
+                  <Link
+                    href="/forgot-password"
                     className="text-sm text-primary hover:underline"
                   >
                     Forgot password?
@@ -113,7 +136,7 @@ export default function LoginPage() {
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Signing in...
                   </>
                 ) : (
@@ -134,4 +157,4 @@ export default function LoginPage() {
       </motion.div>
     </div>
   );
-} 
+}

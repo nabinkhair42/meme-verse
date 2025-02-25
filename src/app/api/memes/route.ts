@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
 import { verifyAuth } from "@/lib/auth";
-import { v4 as uuidv4 } from "uuid";
 
 export async function GET(request: NextRequest) {
   try {
@@ -96,7 +95,6 @@ export async function POST(request: NextRequest) {
     
     // Create new meme
     const newMeme = {
-      id: uuidv4(),
       title,
       url,
       description: description || "",
@@ -113,9 +111,8 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json(newMeme, { status: 201 });
   } catch (error) {
-    console.error("Error creating meme:", error);
     return NextResponse.json(
-      { error: "Failed to create meme" },
+      { error: (error as Error).message },
       { status: 500 }
     );
   }

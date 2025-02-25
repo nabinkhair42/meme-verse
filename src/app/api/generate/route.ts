@@ -27,13 +27,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    
-    console.log("Generating meme with:", { 
-      templateId, 
-      topText, 
-      bottomText,
-      textElements: textElements ? 'provided' : 'not provided'
-    });
+ 
     
     // For development/testing, return a reliable fallback URL
     if (process.env.NODE_ENV === "development") {
@@ -45,8 +39,7 @@ export async function POST(request: NextRequest) {
         "default": "https://i.imgflip.com/30b1gx.jpg"    // Default to Drake
       };
       
-      const fallbackUrl = fallbackUrls[templateId] || fallbackUrls.default;
-      console.log("Using fallback URL for development:", fallbackUrl);
+      const fallbackUrl = fallbackUrls[templateId as keyof typeof fallbackUrls] || fallbackUrls.default;
       
       // Simulate a delay to mimic API call
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -106,11 +99,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ url: response.data.data.url });
   } catch (error) {
     console.error("Error generating meme:", error);
-    
-    // Return a fallback URL in case of error
-    return NextResponse.json({ 
-      url: "https://i.imgflip.com/30b1gx.jpg",
-      error: "Error occurred, using fallback image"
-    });
+    return NextResponse.json(
+      { error: (error as Error).message },
+      { status: 500 }
+    );
   }
 } 

@@ -76,7 +76,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ templates: fallbackTemplates });
     }
   } catch (error) {
-    console.error("Error in templates route:", error);
     return NextResponse.json(
       { templates: [
         {

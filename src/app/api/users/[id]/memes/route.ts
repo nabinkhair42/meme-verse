@@ -17,9 +17,8 @@ export async function GET(
     
     return NextResponse.json(memes);
   } catch (error) {
-    console.error(`Error fetching memes for user ${params.id}:`, error);
     return NextResponse.json(
-      { error: "Failed to fetch user memes" },
+      { error: (error as Error).message },
       { status: 500 }
     );
   }

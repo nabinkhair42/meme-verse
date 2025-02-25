@@ -20,9 +20,8 @@ export async function GET(
     
     return NextResponse.json(meme);
   } catch (error) {
-    console.error("Error fetching meme:", error);
     return NextResponse.json(
-      { error: "Failed to fetch meme" },
+      { error: (error as Error).message },
       { status: 500 }
     );
   }
@@ -53,9 +52,8 @@ export async function PATCH(
     
     return NextResponse.json(updatedMeme);
   } catch (error) {
-    console.error("Error updating meme:", error);
     return NextResponse.json(
-      { error: "Failed to update meme" },
+      { error: (error as Error).message },
       { status: 500 }
     );
   }
@@ -80,9 +78,8 @@ export async function DELETE(
     
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting meme:", error);
     return NextResponse.json(
-      { error: "Failed to delete meme" },
+      { error: (error as Error).message },
       { status: 500 }
     );
   }

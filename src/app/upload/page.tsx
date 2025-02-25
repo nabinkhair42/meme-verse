@@ -43,50 +43,53 @@ export default function UploadPage() {
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
   const { user } = useSelector((state: RootState) => state.auth);
-  
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // For scaling animation on drag
   const [isDragActive, setIsDragActive] = useState(false);
-  
+
   // Reference for the form
   const formRef = useRef<HTMLFormElement>(null);
-  
+
   // Handle file drop
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    const selectedFile = acceptedFiles[0];
-    
-    // Only accept image files
-    if (!selectedFile.type.startsWith("image/")) {
-      toast.error("Please upload an image file");
-      return;
-    }
-    
-    // Create a preview URL
-    const previewUrl = URL.createObjectURL(selectedFile);
-    setPreviewImage(previewUrl);
-    setFile(selectedFile);
-    
-    // Auto-generate a title from filename if no title is set
-    if (!title) {
-      const filename = selectedFile.name.split('.')[0];
-      const formattedTitle = filename
-        .replace(/[-_]/g, ' ')
-        .replace(/\b\w/g, char => char.toUpperCase());
-      setTitle(formattedTitle);
-    }
-  }, [title]);
-  
+  const onDrop = useCallback(
+    (acceptedFiles: File[]) => {
+      const selectedFile = acceptedFiles[0];
+
+      // Only accept image files
+      if (!selectedFile.type.startsWith("image/")) {
+        toast.error("Please upload an image file");
+        return;
+      }
+
+      // Create a preview URL
+      const previewUrl = URL.createObjectURL(selectedFile);
+      setPreviewImage(previewUrl);
+      setFile(selectedFile);
+
+      // Auto-generate a title from filename if no title is set
+      if (!title) {
+        const filename = selectedFile.name.split(".")[0];
+        const formattedTitle = filename
+          .replace(/[-_]/g, " ")
+          .replace(/\b\w/g, (char) => char.toUpperCase());
+        setTitle(formattedTitle);
+      }
+    },
+    [title]
+  );
+
   // Configure dropzone
   const { getRootProps, getInputProps } = useDropzone({
     onDrop,
     accept: {
-      'image/*': ['.jpeg', '.jpg', '.png', '.gif', '.webp']
+      "image/*": [".jpeg", ".jpg", ".png", ".gif", ".webp"],
     },
     maxFiles: 1,
     onDragEnter: () => setIsDragActive(true),
@@ -94,7 +97,7 @@ export default function UploadPage() {
     onDropAccepted: () => setIsDragActive(false),
     onDropRejected: () => setIsDragActive(false),
   });
-  
+
   // Remove the image preview
   const handleRemoveImage = () => {
     if (previewImage) {
@@ -103,26 +106,26 @@ export default function UploadPage() {
     setPreviewImage(null);
     setFile(null);
   };
-  
+
   // Submit the meme with real ImgBB upload
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!file || !title || !category) {
       toast.error("Please fill all required fields and upload an image");
       return;
     }
-    
+
     setIsSubmitting(true);
-    
+
     try {
       // Upload the file to ImgBB
       const uploadResult = await imgbbService.uploadImage(file);
-      
+
       if (!uploadResult || !uploadResult.url) {
         throw new Error("Failed to upload image");
       }
-      
+
       // Create a new meme object
       const newMeme = {
         id: uuidv4(),
@@ -135,19 +138,19 @@ export default function UploadPage() {
         createdAt: new Date().toISOString(),
         likes: 0,
         comments: [],
-        tags: [category.toLowerCase(), "user-uploaded"]
+        tags: [category.toLowerCase(), "user-uploaded"],
       };
-      
+
       // Save to your backend
       const savedMeme = await memeService.createMeme(newMeme);
-      
+
       // Update Redux store
       dispatch(addMeme(savedMeme || newMeme));
       dispatch(addUploadedMeme(savedMeme?.id || newMeme.id));
-      
+
       // Show success message
       toast.success("Meme uploaded successfully!");
-      
+
       // Redirect to the new meme page
       router.push(`/meme/${savedMeme?.id || newMeme.id}`);
     } catch (error) {
@@ -157,7 +160,7 @@ export default function UploadPage() {
       setIsSubmitting(false);
     }
   };
-  
+
   return (
     <ProtectedRoute>
       <div className="py-8 md:py-12 max-w-7xl mx-auto px-4">
@@ -168,27 +171,35 @@ export default function UploadPage() {
           className="max-w-3xl mx-auto"
         >
           <h1 className="text-3xl font-bold mb-6">Upload a Meme</h1>
-          
+
           <Card>
             <CardContent className="pt-6">
               <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
                 {/* Upload Area */}
                 <div className="space-y-2">
                   <Label htmlFor="image">Image</Label>
-                  
+
                   {!previewImage ? (
                     <motion.div
-                      {...getRootProps()}
+                      {...getRootProps({
+                        onDrag: undefined, // Remove the HTML onDrag handler
+                      })}
                       animate={{
                         scale: isDragActive ? 1.02 : 1,
-                        borderColor: isDragActive ? "hsl(var(--primary))" : "hsl(var(--border))",
-                        backgroundColor: isDragActive ? "hsl(var(--primary) / 0.05)" : "transparent"
+                        borderColor: isDragActive
+                          ? "hsl(var(--primary))"
+                          : "hsl(var(--border))",
+                        backgroundColor: isDragActive
+                          ? "hsl(var(--primary) / 0.05)"
+                          : "transparent",
                       }}
                       className="border-2 border-dashed rounded-lg cursor-pointer flex flex-col items-center justify-center p-12 text-center transition-colors"
                     >
                       <input {...getInputProps()} id="image" />
                       <UploadCloud className="h-10 w-10 text-muted-foreground mb-4" />
-                      <p className="mb-2 text-lg font-semibold">Drag & drop your image here</p>
+                      <p className="mb-2 text-lg font-semibold">
+                        Drag & drop your image here
+                      </p>
                       <p className="text-sm text-muted-foreground mb-4">
                         or click to browse (JPG, PNG, GIF up to 10MB)
                       </p>
@@ -199,12 +210,12 @@ export default function UploadPage() {
                   ) : (
                     <div className="relative rounded-lg overflow-hidden border">
                       <div className="aspect-video relative">
-                        <Image 
-                          src={previewImage} 
-                          alt="Preview" 
+                        <Image
+                          src={previewImage}
+                          alt="Preview"
                           fill
-                          className="object-contain" 
-                          unoptimized 
+                          className="object-contain"
+                          unoptimized
                         />
                       </div>
                       <Button
@@ -220,10 +231,12 @@ export default function UploadPage() {
                     </div>
                   )}
                 </div>
-                
+
                 {/* Title */}
                 <div className="space-y-2">
-                  <Label htmlFor="title">Title <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="title">
+                    Title <span className="text-red-500">*</span>
+                  </Label>
                   <Input
                     id="title"
                     value={title}
@@ -232,7 +245,7 @@ export default function UploadPage() {
                     required
                   />
                 </div>
-                
+
                 {/* Description */}
                 <div className="space-y-2">
                   <Label htmlFor="description">Description (optional)</Label>
@@ -244,10 +257,12 @@ export default function UploadPage() {
                     rows={3}
                   />
                 </div>
-                
+
                 {/* Category */}
                 <div className="space-y-2">
-                  <Label htmlFor="category">Category <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="category">
+                    Category <span className="text-red-500">*</span>
+                  </Label>
                   <Select value={category} onValueChange={setCategory} required>
                     <SelectTrigger id="category">
                       <SelectValue placeholder="Select a category" />
@@ -261,32 +276,52 @@ export default function UploadPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                
+
                 {/* Submit Button */}
                 <div className="pt-4">
-                  <Button 
-                    type="submit" 
-                    className="w-full" 
+                  <Button
+                    type="submit"
+                    className="w-full"
                     disabled={isSubmitting || !file || !title || !category}
                   >
                     {isSubmitting ? (
                       <>
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <svg
+                          className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
                         </svg>
                         Uploading...
                       </>
-                    ) : "Upload Meme"}
+                    ) : (
+                      "Upload Meme"
+                    )}
                   </Button>
                 </div>
               </form>
             </CardContent>
           </Card>
-          
+
           {/* Tips */}
           <div className="mt-8">
-            <h3 className="text-lg font-semibold mb-4">Tips for a great meme:</h3>
+            <h3 className="text-lg font-semibold mb-4">
+              Tips for a great meme:
+            </h3>
             <ul className="space-y-2 text-muted-foreground">
               <li className="flex items-start gap-2">
                 <div className="rounded-full bg-primary/10 p-1 mt-0.5">
@@ -312,4 +347,4 @@ export default function UploadPage() {
       </div>
     </ProtectedRoute>
   );
-} 
+}

@@ -30,9 +30,8 @@ export async function GET(
     
     return NextResponse.json({ saved: !!userSave });
   } catch (error) {
-    console.error(`Error checking save status for meme:`, error);
     return NextResponse.json(
-      { error: "Failed to check save status" },
+      { error: (error as Error).message },
       { status: 500 }
     );
   }
@@ -85,9 +84,8 @@ export async function POST(
     
     return NextResponse.json({ saved });
   } catch (error) {
-    console.error(`Error toggling save:`, error);
     return NextResponse.json(
-      { error: "Failed to toggle save" },
+      { error: (error as Error).message },
       { status: 500 }
     );
   }

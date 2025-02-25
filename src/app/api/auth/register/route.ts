@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { v4 as uuidv4 } from "uuid";
+import { successResponse, errorResponse } from "@/lib/apiResponse";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     
     if (!username || !email || !password) {
       return NextResponse.json(
-        { error: "All fields are required" },
+        errorResponse("All fields are required", 400),
         { status: 400 }
       );
     }
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     
     if (existingUser) {
       return NextResponse.json(
-        { error: "User already exists" },
+        errorResponse("User already exists", 400),
         { status: 400 }
       );
     }
@@ -37,9 +37,7 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, salt);
     
     // Create user
-    const userId = uuidv4();
     const newUser = {
-      id: userId,
       username,
       email,
       password: hashedPassword,
@@ -54,7 +52,7 @@ export async function POST(request: NextRequest) {
     
     // Create token
     const token = jwt.sign(
-      { id: userId, email, username },
+      { email, username },
       JWT_SECRET,
       { expiresIn: "7d" }
     );
@@ -62,14 +60,18 @@ export async function POST(request: NextRequest) {
     // Remove password from user object
     const { password: _, ...userWithoutPassword } = newUser;
     
-    return NextResponse.json({
-      token,
-      user: userWithoutPassword
-    }, { status: 201 });
+    return NextResponse.json(
+      successResponse(
+        { token, user: userWithoutPassword },
+        "Registration successful",
+        201
+      ),
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Registration error:", error);
     return NextResponse.json(
-      { error: "Registration failed" },
+      errorResponse("Registration failed", 500),
       { status: 500 }
     );
   }
