@@ -1,35 +1,28 @@
 "use client";
 
-import { ReactNode } from "react";
 import { ThemeProvider } from "@/components/theme-provider";
-import { ReduxProvider } from "@/redux/provider";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { AuthProvider } from "@/components/auth/auth-provider";
-import getQueryClient from "@/lib/react-query";
+import { Provider } from "react-redux";
+import { store } from "@/redux/store";
+import { useState } from "react";
 
-type ProvidersProps = {
-  children: ReactNode;
-};
-
-export function Providers({ children }: ProvidersProps) {
-  const queryClient = getQueryClient();
+export function Providers({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(() => new QueryClient());
   
   return (
-    <QueryClientProvider client={queryClient}>
-      <ReduxProvider>
+    <Provider store={store}>
+      <QueryClientProvider client={queryClient}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
         >
-          <AuthProvider>
-            {children}
-          </AuthProvider>
+          {children}
         </ThemeProvider>
-      </ReduxProvider>
-      <ReactQueryDevtools initialIsOpen={false} />
-    </QueryClientProvider>
+        <ReactQueryDevtools initialIsOpen={false} />
+      </QueryClientProvider>
+    </Provider>
   );
 } 

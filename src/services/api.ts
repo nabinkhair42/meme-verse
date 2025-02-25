@@ -90,28 +90,30 @@ export const imgbbService = {
 // Internal API services for our MongoDB backend
 export const memeService = {
   // Get memes with filters
-  getMemes: async (params: {
-    category?: string;
-    search?: string;
-    sort?: string;
-    page?: number;
-    limit?: number;
+  getMemes: async (options: { 
+    sort?: string; 
+    category?: string; 
+    search?: string; 
+    period?: string;
+    page?: number; 
+    limit?: number 
   }) => {
     try {
-      const queryParams = new URLSearchParams();
-      if (params.category) queryParams.append("category", params.category);
-      if (params.search) queryParams.append("search", params.search);
-      if (params.sort) queryParams.append("sort", params.sort);
-      if (params.page) queryParams.append("page", params.page.toString());
-      if (params.limit) queryParams.append("limit", params.limit.toString());
-
-      const response = await axios.get(`/api/memes?${queryParams.toString()}`);
+      const { sort = 'newest', category, search, period, page = 1, limit = 10 } = options;
+      
+      const params = new URLSearchParams();
+      if (sort) params.append('sort', sort);
+      if (category) params.append('category', category);
+      if (search) params.append('search', search);
+      if (period) params.append('period', period);
+      if (page) params.append('page', page.toString());
+      if (limit) params.append('limit', limit.toString());
+      
+      const response = await axios.get(`/api/memes?${params.toString()}`);
       return response.data;
     } catch (error) {
-      return handleApiError(error, {
-        memes: [],
-        pagination: { total: 0, page: 1, limit: 10, totalPages: 1 }
-      });
+      console.error("Error fetching memes:", error);
+      throw error;
     }
   },
 
@@ -236,6 +238,19 @@ export const memeService = {
       return response.data;
     } catch (error) {
       console.error(`Error adding comment to meme ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // Get feed memes
+  getFeedMemes: async (page = 1, limit = 10) => {
+    try {
+      const response = await axios.get('/api/feed', {
+        params: { page, limit }
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching feed memes:", error);
       throw error;
     }
   },

@@ -70,9 +70,12 @@ export async function GET(
     const client = await clientPromise;
     const db = client.db("meme-verse");
     
+    // Ensure params.id is properly awaited by using it in a variable first
+    const memeId = params.id;
+    
     // Check if user saved this meme
     const userSave = await db.collection("saves").findOne({
-      memeId: params.id,
+      memeId,
       userId: user.id
     });
     
