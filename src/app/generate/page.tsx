@@ -20,7 +20,7 @@ import {
 import Image from "next/image";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { Loader2, DownloadCloud, Shuffle, Share2, Wand2, Plus, Trash2, Move } from "lucide-react";
+import { Loader2, DownloadCloud, Share2, Wand2, Plus, Trash2, Move } from "lucide-react";
 import { motion } from "framer-motion";
 import { v4 as uuidv4 } from "uuid";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -32,7 +32,6 @@ import ColorPicker from "@/components/color-picker";
 import DraggableText from "@/components/draggable-text";
 import { DndContext, DragEndEvent, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
 import { restrictToParentElement } from "@dnd-kit/modifiers";
-import { Canvas } from "@/components/canvas";
 
 // Define a text element interface
 interface TextElement {
@@ -101,6 +100,8 @@ export default function GeneratePage() {
   
   // State for templates from API
   const [templates, setTemplates] = useState<any[]>([]);
+  const [filteredTemplates, setFilteredTemplates] = useState<any[]>([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
   
   // State for text elements (draggable text boxes)
   const [textElements, setTextElements] = useState<TextElement[]>([]);
@@ -130,17 +131,76 @@ export default function GeneratePage() {
   useEffect(() => {
     const fetchTemplates = async () => {
       try {
-        setLoading(true);
-        const templatesData = await imgflipService.getTemplates();
-        setTemplates(templatesData.slice(0, 20)); // Limit to 20 templates
+        setIsLoadingTemplates(true);
+        const templates = await imgflipService.getTemplates();
+        
+        if (!templates || templates.length === 0) {
+          console.error("No templates returned from API");
+          toast.error("Failed to load meme templates. Using fallback templates.");
+          
+          // Use fallback templates
+          const fallbackTemplates = [
+            {
+              id: "181913649",
+              name: "Drake Hotline Bling",
+              url: "https://i.imgflip.com/30b1gx.jpg",
+              width: 1200,
+              height: 1200,
+              box_count: 2
+            },
+            {
+              id: "87743020",
+              name: "Two Buttons",
+              url: "https://i.imgflip.com/1g8my4.jpg",
+              width: 600,
+              height: 908,
+              box_count: 3
+            },
+            {
+              id: "112126428",
+              name: "Distracted Boyfriend",
+              url: "https://i.imgflip.com/1ur9b0.jpg",
+              width: 1200,
+              height: 800,
+              box_count: 3
+            },
+            {
+              id: "131087935",
+              name: "Running Away Balloon",
+              url: "https://i.imgflip.com/261o3j.jpg",
+              width: 761,
+              height: 1024,
+              box_count: 5
+            },
+            {
+              id: "217743513",
+              name: "UNO Draw 25 Cards",
+              url: "https://i.imgflip.com/3lmzyx.jpg",
+              width: 500,
+              height: 494,
+              box_count: 2
+            }
+          ];
+          
+          setTemplates(fallbackTemplates);
+          setFilteredTemplates(fallbackTemplates);
+          return;
+        }
+        
+        setTemplates(templates);
+        setFilteredTemplates(templates);
       } catch (error) {
         console.error("Error fetching templates:", error);
         toast.error("Failed to load meme templates");
+        
+        // Set empty arrays to prevent further errors
+        setTemplates([]);
+        setFilteredTemplates([]);
       } finally {
-        setLoading(false);
+        setIsLoadingTemplates(false);
       }
     };
-
+    
     fetchTemplates();
   }, []);
   
@@ -219,59 +279,53 @@ export default function GeneratePage() {
   
   // Generate meme by drawing on canvas
   const generateMeme = async () => {
-    if (!currentTemplate || !canvasRef.current || !imageRef.current) return;
+    if (!selectedTemplate) {
+      toast.error("Please select a template first");
+      return;
+    }
+    
+    if (textElements.length === 0) {
+      toast.error("Please add at least one text element");
+      return;
+    }
     
     setIsGenerating(true);
     
     try {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
+      // For simplicity, we'll use the first two text elements as top and bottom text
+      // In a real implementation, you'd want to render all text elements on a canvas
+      const topText = textElements[0]?.text || "";
+      const bottomText = textElements.length > 1 ? textElements[1].text : "";
       
-      if (!ctx) {
-        throw new Error("Could not get canvas context");
-      }
-      
-      // Set canvas dimensions to match image
-      canvas.width = imageRef.current.naturalWidth;
-      canvas.height = imageRef.current.naturalHeight;
-      
-      // Draw the template image
-      ctx.drawImage(imageRef.current, 0, 0, canvas.width, canvas.height);
-      
-      // Draw each text element
-      textElements.forEach(element => {
-        ctx.save();
-        
-        // Set text properties
-        ctx.font = `${element.fontSize}px Impact`;
-        ctx.fillStyle = element.color;
-        ctx.strokeStyle = element.strokeColor;
-        ctx.lineWidth = element.fontSize / 15;
-        ctx.textAlign = 'center';
-        
-        // Apply rotation if needed
-        if (element.rotation !== 0) {
-          ctx.translate(element.x, element.y);
-          ctx.rotate(element.rotation * Math.PI / 180);
-          ctx.translate(-element.x, -element.y);
-        }
-        
-        // Draw the text
-        ctx.fillText(element.text, element.x, element.y);
-        ctx.strokeText(element.text, element.x, element.y);
-        
-        ctx.restore();
+      console.log("Generating meme with:", {
+        templateId: selectedTemplate,
+        topText,
+        bottomText
       });
       
-      // Convert canvas to data URL
-      const dataUrl = canvas.toDataURL('image/png');
-      setGeneratedMeme(dataUrl);
+      // Call the API to generate the meme
+      const result = await imgflipService.createMeme(
+        selectedTemplate,
+        topText,
+        bottomText
+      );
+      
+      console.log("Generated meme result:", result);
+      
+      if (!result || !result.url) {
+        throw new Error("Failed to generate meme");
+      }
+      
+      // Set the generated meme URL
+      setGeneratedMeme(result.url);
+      
+      // Switch to preview tab
       setActiveTab("preview");
       
       toast.success("Meme generated successfully!");
     } catch (error) {
       console.error("Error generating meme:", error);
-      toast.error("Failed to generate meme");
+      toast.error("Failed to generate meme. Please try again.");
     } finally {
       setIsGenerating(false);
     }
@@ -279,59 +333,63 @@ export default function GeneratePage() {
   
   // Handle download
   const handleDownload = () => {
-    if (!generatedMeme) return;
+    if (!generatedMeme) {
+      toast.error("Please generate a meme first");
+      return;
+    }
     
-    const link = document.createElement('a');
+    // Create a temporary link element
+    const link = document.createElement("a");
     link.href = generatedMeme;
-    link.download = `meme-${Date.now()}.png`;
+    link.download = `meme-${Date.now()}.jpg`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    
+    toast.success("Meme downloaded successfully!");
   };
   
   // Handle publish to MemeVerse
   const handlePublish = async () => {
-    if (!generatedMeme || !title || !category) {
-      toast.error("Please provide a title and category");
+    if (!generatedMeme) {
+      toast.error("Please generate a meme first");
       return;
     }
     
-    setIsGenerating(true);
+    if (!title) {
+      toast.error("Please enter a title for your meme");
+      return;
+    }
+    
+    if (!category) {
+      toast.error("Please select a category for your meme");
+      return;
+    }
     
     try {
-      // In a real app, you would upload the image to ImgBB first
-      // For demo purposes, we'll use the data URL directly
-      
+      // Create a new meme object
       const newMeme = {
-        id: uuidv4(),
         title,
-        description: `A meme generated using the ${currentTemplate?.name} template`,
         url: generatedMeme,
         category,
-        author: user?.username || "Anonymous",
-        authorId: user?.id,
-        createdAt: new Date().toISOString(),
-        likes: 0,
-        comments: [],
-        tags: [category.toLowerCase(), "ai-generated"]
+        description: "", // Optional description
+        tags: [] // Optional tags
       };
       
-      // Save to backend
+      // Save the meme to the database
       const savedMeme = await memeService.createMeme(newMeme);
       
       // Update Redux store
-      dispatch(addMeme(savedMeme || newMeme));
-      dispatch(addGeneratedMeme(savedMeme?.id || newMeme.id));
+      dispatch(addMeme(savedMeme));
+      dispatch(addGeneratedMeme(savedMeme.id));
       
       toast.success("Meme published successfully!");
       
       // Redirect to the meme page
-      router.push(`/meme/${savedMeme?.id || newMeme.id}`);
+      router.push(`/meme/${savedMeme.id}`);
     } catch (error) {
       console.error("Error publishing meme:", error);
-      toast.error("Failed to publish meme");
-    } finally {
-      setIsGenerating(false);
+      toast.error("Failed to publish meme. Please try again.");
     }
   };
   
@@ -365,7 +423,7 @@ export default function GeneratePage() {
                 <CardTitle>Choose a Template</CardTitle>
               </CardHeader>
               <CardContent>
-                {loading ? (
+                {isLoadingTemplates ? (
                   <div className="space-y-4">
                     {[1, 2, 3, 4, 5].map((i) => (
                       <div key={i} className="flex items-center gap-4">
@@ -384,7 +442,7 @@ export default function GeneratePage() {
                     initial="hidden"
                     animate="show"
                   >
-                    {templates.map((template) => (
+                    {filteredTemplates.map((template) => (
                       <motion.div 
                         key={template.id}
                         variants={item}
@@ -726,6 +784,81 @@ export default function GeneratePage() {
         </motion.div>
       </div>
       <FloatingActionButton onClick={generateMeme} isGenerating={isGenerating} />
+      {process.env.NODE_ENV === "development" && (
+        <div className="mt-8 p-4 border border-dashed rounded-md">
+          <h3 className="text-sm font-semibold mb-2">Debug Tools</h3>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={async () => {
+                try {
+                  const templates = await imgflipService.getTemplates();
+                  console.log("Templates response:", templates);
+                  toast.success(`Fetched ${templates.length} templates`);
+                } catch (error) {
+                  console.error("Debug fetch error:", error);
+                  toast.error("Debug fetch failed");
+                }
+              }}
+            >
+              Test Templates API
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={async () => {
+                try {
+                  const result = await imgflipService.createMeme(
+                    "181913649", // Drake template
+                    "Using real API", 
+                    "Using mock data"
+                  );
+                  console.log("Generate result:", result);
+                  toast.success("Test meme generated");
+                  setGeneratedMeme(result.url);
+                } catch (error) {
+                  console.error("Debug generate error:", error);
+                  toast.error("Debug generate failed");
+                }
+              }}
+            >
+              Test Generate API
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={async () => {
+                try {
+                  if (!generatedMeme) {
+                    toast.error("Please generate a meme first");
+                    return;
+                  }
+                  
+                  const mockMeme = {
+                    title: "Debug Test Meme",
+                    url: generatedMeme,
+                    category: "Funny",
+                    description: "This is a test meme created for debugging",
+                    tags: ["debug", "test"]
+                  };
+                  
+                  const result = await memeService.createMeme(mockMeme);
+                  console.log("Create meme result:", result);
+                  toast.success("Test meme created successfully!");
+                } catch (error) {
+                  console.error("Debug create meme error:", error);
+                  toast.error("Debug create meme failed");
+                }
+              }}
+            >
+              Test Create Meme API
+            </Button>
+          </div>
+        </div>
+      )}
     </ProtectedRoute>
   );
 }

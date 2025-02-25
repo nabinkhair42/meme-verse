@@ -1,37 +1,205 @@
-import axios from "axios";
+import axios, { AxiosResponse, AxiosRequestConfig, InternalAxiosRequestConfig } from "axios";
 import { handleApiError } from "@/lib/api-utils";
+import { toast } from "sonner";
 
-const IMGFLIP_API_URL = "https://api.imgflip.com";
-const IMGBB_API_URL = "https://api.imgbb.com/1";
 const IMGBB_API_KEY = process.env.NEXT_PUBLIC_IMGBB_API_KEY;
+
+// Define types for better type safety
+export interface Meme {
+  id: string;
+  title: string;
+  description?: string;
+  url: string;
+  author: string;
+  authorId: string;
+  createdAt: string;
+  likes: number;
+  comments: Comment[];
+  tags?: string[];
+  category?: string;
+}
+
+export interface Comment {
+  id: string;
+  text: string;
+  author: string;
+  authorId: string;
+  authorAvatar?: string;
+  createdAt: string;
+}
+
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+  avatar: string;
+  bio?: string;
+  joinDate: string;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
+export interface ApiResponse<T> {
+  data: T;
+  message?: string;
+  success: boolean;
+}
+
+// Create an axios instance with interceptors
+const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL || "",
+});
+
+// Add a request interceptor to include the token in all requests
+api.interceptors.request.use(
+  (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
+    if (typeof window !== 'undefined') {
+      try {
+        const token = localStorage.getItem('token');
+        if (token && token !== 'undefined' && token !== 'null') {
+          config.headers = config.headers || {};
+          config.headers.Authorization = `Bearer ${token}`;
+          // Log token for debugging (remove in production)
+          console.log(`Adding token to request: ${token.substring(0, 15)}...`);
+        }
+      } catch (error) {
+        console.error('Error accessing localStorage:', error);
+      }
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Add a response interceptor to handle 401 errors
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // If there's no response, it's likely a network error
+    if (!error.response) {
+      console.error("Network error:", error.message);
+      toast.error("Network error. Please check your connection.");
+      return Promise.reject(error);
+    }
+    
+    // Log all API errors for debugging
+    console.error(`API Error (${error.response.status}):`, {
+      url: originalRequest.url,
+      method: originalRequest.method,
+      status: error.response.status,
+      data: error.response.data
+    });
+    
+    // Handle specific error codes
+    if (error.response.status === 401) {
+      console.log("401 Unauthorized error detected");
+      
+      // Only handle token refresh if we haven't already tried
+      if (!originalRequest._retry) {
+        originalRequest._retry = true;
+        
+        try {
+          // Check if we have a token
+          const token = localStorage.getItem('token');
+          
+          if (!token) {
+            console.log("No token found in localStorage");
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            
+            // Only redirect if we're not already on the login page
+            if (!window.location.pathname.includes('/login') && 
+                !window.location.pathname.includes('/register') &&
+                !window.location.pathname.includes('/debug')) {
+              toast.error("Please log in to continue");
+              window.location.href = '/login';
+            }
+            return Promise.reject(error);
+          }
+          
+          console.log("Retrying request with existing token");
+          return api(originalRequest);
+        } catch (refreshError) {
+          console.error("Token refresh error:", refreshError);
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          
+          if (!window.location.pathname.includes('/login') && 
+              !window.location.pathname.includes('/register') &&
+              !window.location.pathname.includes('/debug')) {
+            toast.error("Your session has expired. Please log in again.");
+            window.location.href = '/login';
+          }
+          return Promise.reject(error);
+        }
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 // Imgflip API services
 export const imgflipService = {
   // Get popular meme templates
-  getTemplates: async () => {
+  getTemplates: async (): Promise<any[]> => {
     try {
-      const response = await axios.get(`${IMGFLIP_API_URL}/get_memes`);
-      return response.data.data.memes;
+      console.log("Fetching templates from API...");
+      const response = await api.get('/api/templates');
+      
+      if (!response.data || !response.data.templates) {
+        console.error("Invalid response format:", response.data);
+        return [];
+      }
+      
+      console.log(`Successfully fetched ${response.data.templates.length} templates`);
+      return response.data.templates || [];
     } catch (error) {
       console.error("Error fetching meme templates:", error);
-      throw error;
+      
+      // Return empty array instead of throwing to prevent app crashes
+      return [];
     }
   },
 
   // Create a meme with the Imgflip API
-  createMeme: async (templateId: string, text0: string, text1: string) => {
+  createMeme: async (templateId: string, topText: string, bottomText: string): Promise<{ url: string }> => {
     try {
-      // In a real application, you would make a POST request to the Imgflip API
-      // For demo purposes, we'll just return a mock response
-      const mockResponse = {
-        success: true,
-        data: {
-          url: `https://i.imgflip.com/${Math.random().toString(36).substring(7)}.jpg`,
-        },
-      };
-      return mockResponse;
+      console.log(`Generating meme with template ${templateId}...`);
+      const response = await api.post('/api/generate', { 
+        templateId, 
+        topText, 
+        bottomText 
+      });
+      
+      if (!response.data || !response.data.url) {
+        console.error("Invalid response format:", response.data);
+        throw new Error("Invalid response from server");
+      }
+      
+      console.log("Meme generated successfully");
+      return response.data;
     } catch (error) {
       console.error("Error creating meme:", error);
+      
+      // In development, return a mock URL to allow testing
+      if (process.env.NODE_ENV === "development") {
+        console.log("Using fallback mock URL for development");
+        return { 
+          url: `https://i.imgflip.com/7r${Math.floor(Math.random() * 9999)}.jpg` 
+        };
+      }
+      
       throw error;
     }
   },
@@ -40,7 +208,7 @@ export const imgflipService = {
   getTrendingMemes: async () => {
     try {
       // First try to get from API
-      const response = await axios.get('/api/memes?sort=likes&limit=10');
+      const response = await api.get('/memes?sort=likes&limit=10');
       return response.data.memes;
     } catch (error) {
       console.error("Error fetching trending memes:", error);
@@ -72,14 +240,17 @@ export const imgflipService = {
 
 // ImgBB API services for image uploads
 export const imgbbService = {
-  uploadImage: async (file: File) => {
+  uploadImage: async (file: File): Promise<{ url: string; delete_url: string }> => {
     try {
       const formData = new FormData();
       formData.append("image", file);
       formData.append("key", IMGBB_API_KEY || "");
 
-      const response = await axios.post(`${IMGBB_API_URL}/upload`, formData);
-      return response.data.data;
+      const response = await axios.post('https://api.imgbb.com/1/upload', formData);
+      return {
+        url: response.data.data.url,
+        delete_url: response.data.data.delete_url
+      };
     } catch (error) {
       console.error("Error uploading image:", error);
       throw error;
@@ -97,7 +268,7 @@ export const memeService = {
     period?: string;
     page?: number; 
     limit?: number 
-  }) => {
+  }): Promise<PaginatedResponse<Meme>> => {
     try {
       const { sort = 'newest', category, search, period, page = 1, limit = 10 } = options;
       
@@ -109,7 +280,7 @@ export const memeService = {
       if (page) params.append('page', page.toString());
       if (limit) params.append('limit', limit.toString());
       
-      const response = await axios.get(`/api/memes?${params.toString()}`);
+      const response = await api.get(`/api/memes?${params.toString()}`);
       return response.data;
     } catch (error) {
       console.error("Error fetching memes:", error);
@@ -118,9 +289,9 @@ export const memeService = {
   },
 
   // Get a single meme by ID
-  getMemeById: async (id: string) => {
+  getMemeById: async (id: string): Promise<Meme> => {
     try {
-      const response = await axios.get(`/api/memes/${id}`);
+      const response = await api.get(`/api/memes/${id}`);
       return response.data;
     } catch (error) {
       console.error(`Error fetching meme ${id}:`, error);
@@ -142,55 +313,54 @@ export const memeService = {
   },
 
   // Create a new meme
-  createMeme: async (memeData: any) => {
+  createMeme: async (memeData: {
+    title: string;
+    url: string;
+    description?: string;
+    category?: string;
+    tags?: string[];
+  }): Promise<Meme> => {
     try {
-      const response = await axios.post("/api/memes", memeData);
+      console.log("Creating meme with data:", memeData);
+      const response = await api.post('/api/memes', memeData);
+      
+      if (!response.data || !response.data.id) {
+        console.error("Invalid response from create meme API:", response.data);
+        throw new Error("Invalid response from server");
+      }
+      
+      console.log("Meme created successfully:", response.data);
       return response.data;
     } catch (error) {
       console.error("Error creating meme:", error);
+      
+      // In development, return a mock meme for testing
+      if (process.env.NODE_ENV === "development") {
+        console.log("Using mock meme for development");
+        const mockMeme: Meme = {
+          id: `mock-${Date.now()}`,
+          title: memeData.title,
+          url: memeData.url,
+          description: memeData.description || "",
+          category: memeData.category || "Other",
+          tags: memeData.tags || [],
+          author: "You",
+          authorId: "your-id",
+          createdAt: new Date().toISOString(),
+          likes: 0,
+          comments: []
+        };
+        return mockMeme;
+      }
+      
       throw error;
     }
   },
 
   // Like a meme
-  likeMeme: async (id: string) => {
+  toggleLike: async (id: string): Promise<{ liked: boolean; likes: number }> => {
     try {
-      const response = await axios.post(`/api/memes/${id}/like`);
-      return response.data;
-    } catch (error) {
-      console.error(`Error liking meme ${id}:`, error);
-      handleApiError(error, null);
-      // Rethrow to handle in component
-      throw error;
-    }
-  },
-
-  // Add a comment to a meme
-  addComment: async (id: string, commentData: { text: string; author: string }) => {
-    try {
-      const response = await axios.post(`/api/memes/${id}/comments`, commentData);
-      return response.data;
-    } catch (error) {
-      console.error(`Error adding comment to meme ${id}:`, error);
-      throw error;
-    }
-  },
-
-  // Check if user has liked a meme
-  checkLikeStatus: async (id: string) => {
-    try {
-      const response = await axios.get(`/api/memes/${id}/like`);
-      return response.data.liked;
-    } catch (error) {
-      console.error(`Error checking like status for meme ${id}:`, error);
-      return false;
-    }
-  },
-
-  // Toggle like on a meme
-  toggleLike: async (id: string) => {
-    try {
-      const response = await axios.post(`/api/memes/${id}/like`);
+      const response = await api.post(`/api/memes/${id}/like`);
       return response.data;
     } catch (error) {
       console.error(`Error toggling like for meme ${id}:`, error);
@@ -198,10 +368,21 @@ export const memeService = {
     }
   },
 
-  // Check if user has saved a meme
-  checkSaveStatus: async (id: string) => {
+  // Check if user has liked a meme
+  checkLikeStatus: async (id: string): Promise<boolean> => {
     try {
-      const response = await axios.get(`/api/memes/${id}/save`);
+      const response = await api.get(`/api/memes/${id}/like`);
+      return response.data.liked;
+    } catch (error) {
+      console.error(`Error checking like status for meme ${id}:`, error);
+      return false;
+    }
+  },
+
+  // Check if user has saved a meme
+  checkSaveStatus: async (id: string): Promise<boolean> => {
+    try {
+      const response = await api.get(`/api/memes/${id}/save`);
       return response.data.saved;
     } catch (error) {
       console.error(`Error checking save status for meme ${id}:`, error);
@@ -210,9 +391,9 @@ export const memeService = {
   },
 
   // Toggle save on a meme
-  toggleSave: async (id: string) => {
+  toggleSave: async (id: string): Promise<{ saved: boolean }> => {
     try {
-      const response = await axios.post(`/api/memes/${id}/save`);
+      const response = await api.post(`/api/memes/${id}/save`);
       return response.data;
     } catch (error) {
       console.error(`Error toggling save for meme ${id}:`, error);
@@ -221,20 +402,20 @@ export const memeService = {
   },
 
   // Get comments for a meme
-  getComments: async (id: string) => {
+  getComments: async (id: string): Promise<Comment[]> => {
     try {
-      const response = await axios.get(`/api/memes/${id}/comments`);
+      const response = await api.get(`/api/memes/${id}/comments`);
       return response.data;
     } catch (error) {
       console.error(`Error fetching comments for meme ${id}:`, error);
       return [];
     }
   },
-
+  
   // Add a comment to a meme
-  addComment: async (id: string, text: string) => {
+  addComment: async (id: string, text: string): Promise<Comment> => {
     try {
-      const response = await axios.post(`/api/memes/${id}/comments`, { text });
+      const response = await api.post(`/api/memes/${id}/comments`, { text });
       return response.data;
     } catch (error) {
       console.error(`Error adding comment to meme ${id}:`, error);
@@ -245,7 +426,7 @@ export const memeService = {
   // Get feed memes
   getFeedMemes: async (page = 1, limit = 10) => {
     try {
-      const response = await axios.get('/api/feed', {
+      const response = await api.get('/feed', {
         params: { page, limit }
       });
       return response.data;
@@ -260,7 +441,7 @@ export const userService = {
   // Get user profile
   getProfile: async (userId: string) => {
     try {
-      const response = await axios.get(`/api/users/${userId}`);
+      const response = await api.get(`/api/users/${userId}`);
       return response.data;
     } catch (error) {
       console.error(`Error fetching user profile ${userId}:`, error);
@@ -278,7 +459,7 @@ export const userService = {
   // Update user profile
   updateProfile: async (userId: string, profileData: any) => {
     try {
-      const response = await axios.patch(`/api/users/${userId}`, profileData);
+      const response = await api.patch(`/api/users/${userId}`, profileData);
       return response.data;
     } catch (error) {
       console.error(`Error updating user profile ${userId}:`, error);
@@ -289,7 +470,7 @@ export const userService = {
   // Get user's memes
   getUserMemes: async (userId: string) => {
     try {
-      const response = await axios.get(`/api/users/${userId}/memes`);
+      const response = await api.get(`/api/users/${userId}/memes`);
       return response.data;
     } catch (error) {
       console.error(`Error fetching memes for user ${userId}:`, error);
@@ -300,7 +481,7 @@ export const userService = {
   // Get saved memes for a user
   getSavedMemes: async (userId: string) => {
     try {
-      const response = await axios.get(`/api/users/${userId}/saved`);
+      const response = await api.get(`/api/users/${userId}/saved`);
       return response.data;
     } catch (error) {
       console.error(`Error fetching saved memes for user ${userId}:`, error);
@@ -313,7 +494,7 @@ export const leaderboardService = {
   // Get top memes
   getTopMemes: async (period: string = "all-time") => {
     try {
-      const response = await axios.get(`/api/leaderboard/memes?period=${period}`);
+      const response = await api.get(`/api/leaderboard/memes?period=${period}`);
       return response.data;
     } catch (error) {
       console.error(`Error fetching top memes:`, error);
@@ -324,11 +505,77 @@ export const leaderboardService = {
   // Get top users
   getTopUsers: async (period: string = "all-time") => {
     try {
-      const response = await axios.get(`/api/leaderboard/users?period=${period}`);
+      const response = await api.get(`/api/leaderboard/users?period=${period}`);
       return response.data;
     } catch (error) {
       console.error(`Error fetching top users:`, error);
       throw error;
     }
   },
+};
+
+// Auth service for authentication
+export const authService = {
+  validateToken: async (): Promise<User> => {
+    try {
+      // Add a timestamp to prevent caching
+      const timestamp = new Date().getTime();
+      const response = await api.get(`/api/auth/validate?t=${timestamp}`);
+      
+      if (!response.data || !response.data.user) {
+        console.error("Invalid response from validate endpoint:", response.data);
+        throw new Error("Invalid response from server");
+      }
+      
+      return response.data.user;
+    } catch (error) {
+      console.error("Error validating token:", error);
+      
+      // Check if it's a network error
+      if (!error) {
+        console.log("Network error - using fallback");
+        // Try to get user from localStorage as fallback
+        try {
+          const user = localStorage.getItem('user');
+          if (user) {
+            return JSON.parse(user);
+          }
+        } catch (e) {
+          console.error("Error parsing user from localStorage:", e);
+        }
+      }
+      
+      throw error;
+    }
+  },
+  
+  login: async (credentials: { email: string; password: string }): Promise<{ token: string; user: User }> => {
+    try {
+      const response = await api.post('/api/auth/login', credentials);
+      return response.data;
+    } catch (error) {
+      console.error("Error logging in:", error);
+      throw error;
+    }
+  },
+  
+  register: async (userData: { username: string; email: string; password: string }): Promise<{ token: string; user: User }> => {
+    try {
+      const response = await api.post('/api/auth/register', userData);
+      return response.data;
+    } catch (error) {
+      console.error("Error registering:", error);
+      throw error;
+    }
+  },
+  
+  getCurrentUser: async (config: any): Promise<User> => {
+    try {
+      const response = await api.get('/api/auth/me', config);
+      return response.data.user;
+    } catch (error) {
+      console.error("Error getting current user:", error);
+      throw error;
+    }
+  }
 }; 

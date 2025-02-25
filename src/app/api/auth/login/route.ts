@@ -2,66 +2,69 @@ import { NextRequest, NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { cookies } from "next/headers";
 
-const JWT_SECRET = process.env.JWT_SECRET || "memeverse-secret-key";
+const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
 export async function POST(request: NextRequest) {
   try {
+    const { email, password } = await request.json();
+    
+    if (!email || !password) {
+      return NextResponse.json(
+        { error: "Email and password are required" },
+        { status: 400 }
+      );
+    }
+    
     const client = await clientPromise;
     const db = client.db("meme-verse");
-    
-    const data = await request.json();
-    const { email, password } = data;
     
     // Find user by email
     const user = await db.collection("users").findOne({ email });
     
     if (!user) {
+      console.log(`Login attempt failed: User with email ${email} not found`);
       return NextResponse.json(
-        { error: "User not found" },
+        { error: "Invalid credentials" },
         { status: 401 }
       );
     }
     
-    // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    // Compare passwords
+    const isMatch = await bcrypt.compare(password, user.password);
     
-    if (!isPasswordValid) {
+    if (!isMatch) {
+      console.log(`Login attempt failed: Invalid password for user ${email}`);
       return NextResponse.json(
-        { error: "Invalid password" },
+        { error: "Invalid credentials" },
         { status: 401 }
       );
     }
     
-    // Create JWT token
+    // Create token
     const token = jwt.sign(
-      { id: user.id, email: user.email, username: user.username },
+      { 
+        id: user.id || user._id, 
+        email: user.email, 
+        username: user.username 
+      },
       JWT_SECRET,
       { expiresIn: "7d" }
     );
     
-    // Set cookie
-    const cookieStore = await cookies();
-    cookieStore.set("auth-token", token, {
-      httpOnly: true,
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-      path: "/",
-      sameSite: "strict",
-      secure: process.env.NODE_ENV === "production"
-    });
+    console.log(`User ${email} logged in successfully`);
     
-    // Exclude password from response
+    // Remove password from user object
     const { password: _, ...userWithoutPassword } = user;
     
     return NextResponse.json({
-      user: userWithoutPassword,
-      token
+      token,
+      user: userWithoutPassword
     });
   } catch (error) {
-    console.error("Error logging in:", error);
+    console.error("Login error:", error);
     return NextResponse.json(
-      { error: "Failed to log in" },
+      { error: "Login failed", details: error.message },
       { status: 500 }
     );
   }

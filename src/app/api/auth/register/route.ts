@@ -1,24 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
+
+const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
 export async function POST(request: NextRequest) {
   try {
+    const { username, email, password } = await request.json();
+    
+    if (!username || !email || !password) {
+      return NextResponse.json(
+        { error: "All fields are required" },
+        { status: 400 }
+      );
+    }
+    
     const client = await clientPromise;
     const db = client.db("meme-verse");
     
-    const data = await request.json();
-    const { username, email, password } = data;
-    
     // Check if user already exists
-    const existingUser = await db.collection("users").findOne({ 
-      $or: [{ email }, { username }] 
+    const existingUser = await db.collection("users").findOne({
+      $or: [{ email }, { username }]
     });
     
     if (existingUser) {
       return NextResponse.json(
-        { error: "User with this email or username already exists" },
+        { error: "User already exists" },
         { status: 400 }
       );
     }
@@ -27,7 +36,7 @@ export async function POST(request: NextRequest) {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     
-    // Create new user
+    // Create user
     const userId = uuidv4();
     const newUser = {
       id: userId,
@@ -35,7 +44,7 @@ export async function POST(request: NextRequest) {
       email,
       password: hashedPassword,
       avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
-      bio: `Hello, I'm ${username}!`,
+      bio: "",
       joinDate: new Date().toISOString(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -43,14 +52,24 @@ export async function POST(request: NextRequest) {
     
     await db.collection("users").insertOne(newUser);
     
-    // Exclude password from response
+    // Create token
+    const token = jwt.sign(
+      { id: userId, email, username },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+    
+    // Remove password from user object
     const { password: _, ...userWithoutPassword } = newUser;
     
-    return NextResponse.json(userWithoutPassword, { status: 201 });
+    return NextResponse.json({
+      token,
+      user: userWithoutPassword
+    }, { status: 201 });
   } catch (error) {
-    console.error("Error registering user:", error);
+    console.error("Registration error:", error);
     return NextResponse.json(
-      { error: "Failed to register user" },
+      { error: "Registration failed" },
       { status: 500 }
     );
   }

@@ -3,6 +3,30 @@ import clientPromise from "@/lib/mongodb";
 import { verifyAuth } from "@/lib/auth";
 import { v4 as uuidv4 } from "uuid";
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const client = await clientPromise;
+    const db = client.db("meme-verse");
+    
+    // Get comments for this meme
+    const comments = await db.collection("comments")
+      .find({ memeId: params.id })
+      .sort({ createdAt: -1 })
+      .toArray();
+    
+    return NextResponse.json(comments);
+  } catch (error) {
+    console.error(`Error fetching comments for meme ${params.id}:`, error);
+    return NextResponse.json(
+      { error: "Failed to fetch comments" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -17,10 +41,9 @@ export async function POST(
       );
     }
     
-    const data = await request.json();
-    const { text } = data;
+    const { text } = await request.json();
     
-    if (!text || text.trim() === "") {
+    if (!text || typeof text !== 'string' || text.trim() === '') {
       return NextResponse.json(
         { error: "Comment text is required" },
         { status: 400 }
@@ -30,58 +53,30 @@ export async function POST(
     const client = await clientPromise;
     const db = client.db("meme-verse");
     
-    // Create comment object
-    const comment = {
+    // Create new comment
+    const newComment = {
       id: uuidv4(),
-      text,
+      memeId: params.id,
+      userId: user.id,
       author: user.username,
-      authorId: user.id,
+      authorAvatar: user.avatar,
+      text,
       createdAt: new Date().toISOString()
     };
     
-    // Add comment to meme
+    await db.collection("comments").insertOne(newComment);
+    
+    // Update meme with new comment
     await db.collection("memes").updateOne(
       { id: params.id },
-      { $push: { comments: comment } }
+      { $push: { comments: newComment } }
     );
     
-    return NextResponse.json(comment);
+    return NextResponse.json(newComment);
   } catch (error) {
     console.error(`Error adding comment to meme ${params.id}:`, error);
     return NextResponse.json(
       { error: "Failed to add comment" },
-      { status: 500 }
-    );
-  }
-}
-
-// GET endpoint to get all comments for a meme
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const client = await clientPromise;
-    const db = client.db("meme-verse");
-    
-    // Get meme with comments
-    const meme = await db.collection("memes").findOne(
-      { id: params.id },
-      { projection: { comments: 1 } }
-    );
-    
-    if (!meme) {
-      return NextResponse.json(
-        { error: "Meme not found" },
-        { status: 404 }
-      );
-    }
-    
-    return NextResponse.json(meme.comments || []);
-  } catch (error) {
-    console.error(`Error fetching comments for meme ${params.id}:`, error);
-    return NextResponse.json(
-      { error: "Failed to fetch comments" },
       { status: 500 }
     );
   }

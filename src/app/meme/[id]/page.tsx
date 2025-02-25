@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "@/redux/store";
-import { Comment, likeMeme, unlikeMeme, addComment, Meme } from "@/redux/features/memes/memesSlice";
-import { toggleLikeMeme, toggleSaveMeme } from "@/redux/features/user/userSlice";
+import { Meme } from "@/redux/features/memes/memesSlice";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -15,18 +14,16 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { format } from "date-fns";
 import { Heart, MessageCircle, Share2, Download, ArrowLeft, Send, Bookmark, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { v4 as uuidv4 } from "uuid";
 import { memeService } from "@/services/api";
 import { ImageIcon } from "lucide-react";
+import { formatDate, cn } from "@/lib/utils";
 
 export default function MemePage() {
   const { id } = useParams();
   const router = useRouter();
-  const dispatch = useDispatch<AppDispatch>();
   
   const { items, status } = useSelector((state: RootState) => state.memes);
   const { likedMemes, savedMemes, profile } = useSelector((state: RootState) => state.user);
@@ -54,7 +51,7 @@ export default function MemePage() {
       try {
         // Fetch meme data
         const data = await memeService.getMemeById(id as string);
-        setMemeData(data);
+        setMemeData(data as Meme);
         
         // Check if user has liked this meme
         if (isAuthenticated) {
@@ -86,8 +83,8 @@ export default function MemePage() {
   const handleLike = async () => {
     if (!memeData || isLiking || !isAuthenticated) {
       if (!isAuthenticated) {
-        toast.error("Please log in to like memes");
         router.push("/login");
+        toast.error("Please log in to like memes");
       }
       return;
     }
@@ -96,20 +93,25 @@ export default function MemePage() {
     try {
       // Optimistic update for UI responsiveness
       setHasLiked(!hasLiked);
-      setMemeData(prev => ({
-        ...prev,
-        likes: hasLiked ? prev.likes - 1 : prev.likes + 1
-      }));
+      setMemeData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          likes: hasLiked ? prev.likes - 1 : prev.likes + 1
+        };
+      });
       
       // Call API to toggle like
       const result = await memeService.toggleLike(memeData.id);
-      
       // Update with actual result from server
       setHasLiked(result.liked);
-      setMemeData(prev => ({
-        ...prev,
-        likes: result.likes
-      }));
+      setMemeData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          likes: result.likes
+        };
+      });
       
       toast.success(result.liked 
         ? "Added to your liked memes" 
@@ -120,10 +122,13 @@ export default function MemePage() {
       
       // Revert optimistic update on error
       setHasLiked(!hasLiked);
-      setMemeData(prev => ({
-        ...prev,
-        likes: hasLiked ? prev.likes + 1 : prev.likes - 1
-      }));
+      setMemeData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          likes: hasLiked ? prev.likes + 1 : prev.likes - 1
+        };
+      });
     } finally {
       setIsLiking(false);
     }
@@ -145,12 +150,14 @@ export default function MemePage() {
     try {
       // Call API to add comment
       const newComment = await memeService.addComment(memeData.id, commentText);
-      
       // Update local state with new comment
-      setMemeData(prev => ({
-        ...prev,
-        comments: [...prev.comments, newComment]
-      }));
+      setMemeData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          comments: [...prev.comments, newComment]
+        };
+      });
       
       // Clear input
       setCommentText("");
@@ -224,7 +231,7 @@ export default function MemePage() {
   };
   
   return (
-    <div className="py-8 md:py-12">
+    <div className="py-8 md:py-12 max-w-7xl mx-auto px-4">
       <div className="max-w-4xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -233,11 +240,11 @@ export default function MemePage() {
         >
           <Button
             variant="ghost"
-            className="mb-6"
+            className="flex items-center gap-2 mb-6"
             onClick={() => router.back()}
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back</span>
           </Button>
         </motion.div>
         
@@ -277,7 +284,7 @@ export default function MemePage() {
             <h1 className="text-3xl font-bold mb-2">{memeData.title}</h1>
             <div className="flex items-center gap-2 mb-6">
               <p className="text-muted-foreground">
-                By {memeData.author} • {format(new Date(memeData.createdAt), "MMM d, yyyy")}
+                By {memeData.author} • {formatDate(memeData.createdAt)}
               </p>
               <Badge variant="outline">{memeData.category}</Badge>
             </div>
@@ -420,14 +427,19 @@ export default function MemePage() {
                         animate={{ opacity: 1, y: 0 }}
                       >
                         <Avatar>
-                          <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.author}`} />
-                          <AvatarFallback>{comment.author[0].toUpperCase()}</AvatarFallback>
+                          <AvatarImage 
+                            src={comment.author || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.author}`} 
+                            alt={comment.author}
+                          />
+                          <AvatarFallback>
+                            {comment.author && comment.author[0] ? comment.author[0].toUpperCase() : '?'}
+                          </AvatarFallback>
                         </Avatar>
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="font-semibold">{comment.author}</span>
                             <span className="text-xs text-muted-foreground">
-                              {format(new Date(comment.createdAt), 'MMM d, yyyy')}
+                              {formatDate(comment.createdAt)}
                             </span>
                           </div>
                           <p className="text-sm">{comment.text}</p>

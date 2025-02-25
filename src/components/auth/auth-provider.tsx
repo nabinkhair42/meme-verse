@@ -1,25 +1,71 @@
 "use client";
 
-import { useEffect } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import { AppDispatch, RootState } from "@/redux/store";
-import { getCurrentUser } from "@/redux/features/auth/authSlice";
-import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useDispatch } from "react-redux";
+import { AppDispatch } from "@/redux/store";
+import { setUser, clearUser } from "@/redux/features/auth/authSlice";
+import { authService } from "@/services/api";
+import { toast } from "sonner";
 
-interface AuthProviderProps {
-  children: React.ReactNode;
-}
-
-export function AuthProvider({ children }: AuthProviderProps) {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const dispatch = useDispatch<AppDispatch>();
-  const { isAuthenticated, loading, token } = useSelector((state: RootState) => state.auth);
+  const [isValidating, setIsValidating] = useState(true);
   
   useEffect(() => {
-    // If there's a token, try to get the current user
-    if (token && !isAuthenticated && !loading) {
-      dispatch(getCurrentUser());
+    // Skip validation on server
+    if (typeof window === 'undefined') {
+      setIsValidating(false);
+      return;
     }
-  }, [dispatch, token, isAuthenticated, loading]);
+    
+    const validateToken = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        
+        // Log token for debugging
+        console.log(`Token in localStorage: ${token ? 'exists' : 'missing'}`);
+        
+        if (token) {
+          try {
+            console.log('Validating token with server...');
+            const user = await authService.validateToken();
+            console.log('Token validation successful:', user);
+            dispatch(setUser(user));
+          } catch (error) {
+            console.error("Token validation failed:", error);
+            
+            // Clear invalid token
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            dispatch(clearUser());
+            
+            // Show a toast notification
+            toast.error("Your session has expired. Please log in again.");
+          }
+        } else {
+          console.log('No token found, user is not authenticated');
+          dispatch(clearUser());
+        }
+      } catch (error) {
+        console.error("Auth provider error:", error);
+        dispatch(clearUser());
+      } finally {
+        setIsValidating(false);
+      }
+    };
+    
+    validateToken();
+  }, [dispatch]);
   
-  return <>{children}</>;
+  // Show a simple loading state while validating
+  if (isValidating) {
+    return <div className="min-h-screen"></div>;
+  }
+  
+  // Wrap any client-side only content with ClientOnly
+  return (
+    <>
+      {children}
+    </>
+  );
 } 

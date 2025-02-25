@@ -27,5 +27,21 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
   
+  // Log auth headers for debugging
+  if (request.nextUrl.pathname.startsWith('/api/auth')) {
+    console.log('Auth API Request:', {
+      path: request.nextUrl.pathname,
+      headers: {
+        authorization: request.headers.get('authorization'),
+      },
+    });
+  }
+  
   return NextResponse.next()
-} 
+}
+
+export const config = {
+  matcher: [
+    '/api/auth/:path*',
+  ],
+}; 
