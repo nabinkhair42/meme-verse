@@ -10,12 +10,21 @@ export async function POST(request: NextRequest) {
   try {
     // Get login data from request
     const { email, password } = await request.json();
-    
+
     // Validate required fields
     if (!email || !password) {
       return NextResponse.json(
         errorResponse("Email and password are required", 400),
         { status: 400 }
+      );
+    }
+    
+    // Check if user exists
+    const isUserAvailable = await userModel.findByEmail(email);
+    if (!isUserAvailable) {
+      return NextResponse.json(
+        errorResponse("User not found", 401),
+        { status: 401 }
       );
     }
     
@@ -32,10 +41,24 @@ export async function POST(request: NextRequest) {
     // Generate token
     const token = generateToken(user);
     
-    return NextResponse.json(
+    // Set HTTP-only cookie for better security
+    const response = NextResponse.json(
       successResponse({ user, token }, "Login successful"),
       { status: 200 }
     );
+    
+    // Set cookie with token
+    response.cookies.set({
+      name: 'auth-token',
+      value: token,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+      path: '/',
+    });
+    
+    return response;
   } catch (error) {
     console.error("Error logging in:", error);
     return NextResponse.json(

@@ -55,7 +55,7 @@ export class MemeModel {
       updatedAt: new Date(),
       likes: 0,
       commentCount: 0,
-      tags: memeData.tags || [],
+      tags: Array.isArray(memeData.tags) ? memeData.tags : [],
       category: memeData.category || 'Other',
       type: memeData.type,
       templateId: memeData.templateId,
@@ -88,9 +88,24 @@ export class MemeModel {
     }
     
     const meme = await memeCollection.findOne({ _id: objectId });
+    if (!meme) {
+      return null;
+    }
+    
+    // Get comments for this meme
+    const commentsCollection = await dbService.getCollection('comments');
+    const comments = await commentsCollection.find({ memeId: id }).sort({ createdAt: -1 }).toArray();
     
     // Convert MongoDB document to Meme type
-    return DatabaseService.documentToType<Meme>(meme);
+    const memeData = DatabaseService.documentToType<Meme>(meme);
+    
+    // Add comments to the meme data if it exists
+    if (memeData) {
+      // @ts-ignore - Add comments to the meme data
+      memeData.comments = comments;
+    }
+    
+    return memeData;
   }
   
   /**

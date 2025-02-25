@@ -75,22 +75,35 @@ export function MemeFeed() {
     const checkInteractionStatus = async () => {
       if (!isAuthenticated || !data) return;
       
-      const allMemes = data.pages.flatMap(page => (page as any).memes);
+      const allMemes = data.pages.flatMap(page => {
+        // Check if page.data exists and is an array
+        const memes = page && page.data;
+        return Array.isArray(memes) ? memes : [];
+      });
       
       for (const meme of allMemes) {
         try {
+          // Skip if meme or meme.id is undefined
+          if (!meme || !meme.id) continue;
+          
           // Only check if we haven't already checked
           if (likedMemes[meme.id] === undefined) {
-            const isLiked = await memeService.checkLikeStatus(meme.id);
-            setLikedMemes(prev => ({ ...prev, [meme.id]: isLiked }));
+            const likeResponse = await memeService.checkLikeStatus(meme.id);
+            setLikedMemes(prev => ({ 
+              ...prev, 
+              [meme.id]: likeResponse?.liked || false 
+            }));
           }
           
           if (savedMemes[meme.id] === undefined) {
-            const isSaved = await memeService.checkSaveStatus(meme.id);
-            setSavedMemes(prev => ({ ...prev, [meme.id]: isSaved }));
+            const saveResponse = await memeService.checkSaveStatus(meme.id);
+            setSavedMemes(prev => ({ 
+              ...prev, 
+              [meme.id]: saveResponse?.saved || false 
+            }));
           }
         } catch (error) {
-          console.error(`Error checking interaction status for meme ${meme.id}:`, error);
+          console.error(`Error checking interaction status for meme:`, error);
         }
       }
     };
@@ -100,16 +113,59 @@ export function MemeFeed() {
   
   // Handle like toggle
   const handleLikeToggle = (meme: Meme, newState: boolean) => {
+    if (!meme || !meme.id) return;
+    
+    console.log(`Updating like status for meme ${meme.id} to ${newState}, likes: ${meme.likes}`);
+    
+    // Update the liked status in the local state
     setLikedMemes(prev => ({ ...prev, [meme.id]: newState }));
+    
+    // Update the meme in the allMemes array to reflect the new like count
+    if (data) {
+      // Create a new pages array with the updated meme
+      const updatedPages = data.pages.map(page => {
+        // Check if page.data exists and is an array
+        if (!page || !page.data || !Array.isArray(page.data)) return page;
+        
+        // Create a new data array with the updated meme
+        const updatedData = page.data.map(m => {
+          if (m.id === meme.id) {
+            // Use the updated meme's like count instead of incrementing/decrementing
+            return {
+              ...m,
+              likes: meme.likes
+            };
+          }
+          return m;
+        });
+        
+        // Return the updated page
+        return {
+          ...page,
+          data: updatedData
+        };
+      });
+      
+      // Update the data with the new pages
+      // Note: This is a workaround since we can't directly mutate the data
+      // In a real app, you would use a proper state management solution
+      // or refetch the data from the server
+      (data as any).pages = updatedPages;
+    }
   };
   
   // Handle save toggle
   const handleSaveToggle = (meme: Meme, newState: boolean) => {
+    if (!meme || !meme.id) return;
     setSavedMemes(prev => ({ ...prev, [meme.id]: newState }));
   };
   
   // Flatten all memes from all pages
-  const allMemes = data?.pages.flatMap(page => (page as any).memes) || [];
+  const allMemes = data?.pages.flatMap(page => {
+    // Check if page.data exists and is an array
+    const memes = page && page.data;
+    return Array.isArray(memes) ? memes : [];
+  }) || [];
   
   // Animation variants
   const container = {
@@ -184,18 +240,20 @@ export function MemeFeed() {
               initial="hidden"
               animate="show"
             >
-              {allMemes.map((meme) => (
-                <motion.div key={meme.id} variants={item} layout>
-                  <MemeCard 
-                    meme={meme}
-                    isLiked={likedMemes[meme.id] || false}
-                    isSaved={savedMemes[meme.id] || false}
-                    isAuthenticated={isAuthenticated}
-                    onLikeToggle={handleLikeToggle}
-                    onSaveToggle={handleSaveToggle}
-                  />
-                </motion.div>
-              ))}
+              {allMemes
+                .filter(meme => meme && meme.id) // Filter out any memes without an id
+                .map((meme) => (
+                  <motion.div key={meme.id} variants={item} layout>
+                    <MemeCard 
+                      meme={meme}
+                      isLiked={likedMemes[meme.id] || false}
+                      isSaved={savedMemes[meme.id] || false}
+                      isAuthenticated={isAuthenticated}
+                      onLikeToggle={handleLikeToggle}
+                      onSaveToggle={handleSaveToggle}
+                    />
+                  </motion.div>
+                ))}
               
               {/* Loading indicator for infinite scroll */}
               <div ref={ref} className="py-4 flex justify-center">
@@ -267,18 +325,20 @@ export function MemeFeed() {
               initial="hidden"
               animate="show"
             >
-              {allMemes.map((meme) => (
-                <motion.div key={meme.id} variants={item} layout>
-                  <MemeCard 
-                    meme={meme}
-                    isLiked={likedMemes[meme.id] || false}
-                    isSaved={savedMemes[meme.id] || false}
-                    isAuthenticated={isAuthenticated}
-                    onLikeToggle={handleLikeToggle}
-                    onSaveToggle={handleSaveToggle}
-                  />
-                </motion.div>
-              ))}
+              {allMemes
+                .filter(meme => meme && meme.id) // Filter out any memes without an id
+                .map((meme) => (
+                  <motion.div key={meme.id} variants={item} layout>
+                    <MemeCard 
+                      meme={meme}
+                      isLiked={likedMemes[meme.id] || false}
+                      isSaved={savedMemes[meme.id] || false}
+                      isAuthenticated={isAuthenticated}
+                      onLikeToggle={handleLikeToggle}
+                      onSaveToggle={handleSaveToggle}
+                    />
+                  </motion.div>
+                ))}
               
               {/* Loading indicator for infinite scroll */}
               <div ref={ref} className="py-4 flex justify-center">

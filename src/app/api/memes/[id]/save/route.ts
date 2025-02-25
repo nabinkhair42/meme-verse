@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import clientPromise from "@/lib/mongodb";
 import { verifyAuth } from "@/lib/auth";
 import { successResponse, errorResponse } from "@/lib/apiResponse";
+import { SavedMemeModel } from "@/models/SavedMeme";
 
 export async function GET(
   request: NextRequest,
@@ -20,19 +20,20 @@ export async function GET(
     
     // IMPORTANT: Await the params object before accessing its properties
     const memeId = (await params).id;
+    const userId = user._id?.toString();
     
-    // Get the database connection
-    const client = await clientPromise;
-    const db = client.db("meme-verse");
+    if (!userId) {
+      return NextResponse.json(
+        errorResponse("Invalid user ID", 400),
+        { status: 400 }
+      );
+    }
     
-    // Check if user saved this meme
-    const userSave = await db.collection("saves").findOne({
-      memeId,
-      userId: user.id
-    });
+    // Check if user saved this meme using SavedMemeModel
+    const isSaved = await SavedMemeModel.hasSavedMeme(userId, memeId);
     
     return NextResponse.json(
-      successResponse({ saved: !!userSave }),
+      successResponse({ saved: isSaved }),
       { status: 200 }
     );
   } catch (error) {
@@ -60,34 +61,17 @@ export async function POST(
     
     // IMPORTANT: Await the params object before accessing its properties
     const memeId = (await params).id;
+    const userId = user._id?.toString();
     
-    const client = await clientPromise;
-    const db = client.db("meme-verse");
-    
-    // Check if user already saved this meme
-    const userSave = await db.collection("saves").findOne({
-      memeId,
-      userId: user.id
-    });
-    
-    let saved = false;
-    
-    if (userSave) {
-      // User already saved this meme, so unsave it
-      await db.collection("saves").deleteOne({
-        memeId,
-        userId: user.id
-      });
-    } else {
-      // User hasn't saved this meme yet, so save it
-      await db.collection("saves").insertOne({
-        memeId,
-        userId: user.id,
-        createdAt: new Date().toISOString()
-      });
-      
-      saved = true;
+    if (!userId) {
+      return NextResponse.json(
+        errorResponse("Invalid user ID", 400),
+        { status: 400 }
+      );
     }
+    
+    // Toggle save status using SavedMemeModel
+    const saved = await SavedMemeModel.saveMeme(userId, memeId);
     
     return NextResponse.json(
       successResponse({ saved }),

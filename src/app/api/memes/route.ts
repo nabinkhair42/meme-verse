@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
         title: memeData.title,
         imageUrl: memeData.imageUrl,
         description: memeData.description,
-        tags: memeData.tags,
+        tags: Array.isArray(memeData.tags) ? memeData.tags : [],
         category: memeData.category,
         type: memeData.type || 'uploaded',
         templateId: memeData.templateId,
@@ -105,3 +105,4 @@ export async function POST(request: NextRequest) {
     );
   }
 } 
+

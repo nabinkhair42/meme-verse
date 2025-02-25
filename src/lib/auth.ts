@@ -1,26 +1,11 @@
 import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
-import bcrypt from "bcryptjs";
 import { User } from "@/types/user";
-import { userModel } from "@/models";
+import { ObjectId } from "mongodb";
+import clientPromise from "@/lib/mongodb";
 
 // JWT secret key
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-
-/**
- * Hash a password
- */
-export async function hashPassword(password: string): Promise<string> {
-  const salt = await bcrypt.genSalt(10);
-  return bcrypt.hash(password, salt);
-}
-
-/**
- * Compare a password with a hash
- */
-export async function comparePassword(password: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(password, hash);
-}
 
 /**
  * Generate a JWT token for a user
@@ -70,10 +55,32 @@ export async function verifyAuth(request: NextRequest): Promise<User | null> {
       return null;
     }
     
-    // Get user from database
-    const user = await userModel.findById(decoded.id);
+    // Get user from database directly instead of using userModel
+    const client = await clientPromise;
+    const db = client.db("meme-verse");
     
-    return user;
+    const objectId = new ObjectId(decoded.id);
+    const user = await db.collection("users").findOne({ _id: objectId });
+    
+    if (!user) {
+      return null;
+    }
+    
+    // Remove password from returned user
+    if (user.password) {
+      delete user.password;
+    }
+    
+    // Convert to User type
+    return {
+      _id: user._id.toString(),
+      username: user.username,
+      email: user.email,
+      avatar: user.avatar,
+      bio: user.bio,
+      joinDate: user.joinDate,
+      role: user.role
+    } as User;
   } catch (error) {
     console.error("Auth error:", error);
     return null;

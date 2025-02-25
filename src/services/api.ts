@@ -38,7 +38,7 @@ export interface User {
 }
 
 export interface PaginatedResponse<T> {
-  items: T[];
+  data: T[];
   pagination: {
     total: number;
     page: number;
@@ -72,6 +72,7 @@ export interface TextElement {
 // Create an axios instance with interceptors
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "",
+  withCredentials: true, // Enable cookies for all requests
 });
 
 // Add a request interceptor to automatically add the token to all requests
@@ -81,7 +82,7 @@ api.interceptors.request.use(
     const token = localStorage.getItem('token');
     
     // If token exists, add it to the Authorization header
-    if (token) {
+    if (token && !config.headers.Authorization) {
       config.headers.Authorization = `Bearer ${token}`;
       console.log(`Adding token to request: ${token.substring(0, 15)}...`);
     } else {
@@ -397,6 +398,34 @@ export const memeService = {
       if (limit) params.append('limit', limit.toString());
       
       const response = await api.get(`/api/memes?${params.toString()}`);
+      
+      // Map the API response to the expected format
+      const apiResponse = response.data;
+      
+      // Check if the response has the expected structure
+      if (apiResponse && apiResponse.success && apiResponse.data) {
+        // Map the memes to the expected format
+        const mappedMemes = apiResponse.data.memes.map((meme: any) => ({
+          id: meme._id || meme.id, // Use _id as id if available
+          title: meme.title,
+          description: meme.description || '',
+          url: meme.imageUrl || meme.url, // Use imageUrl as url if available
+          category: meme.category || 'Other',
+          author: meme.username || meme.author || 'Unknown',
+          authorId: meme.userId || meme.authorId || '',
+          createdAt: meme.createdAt,
+          likes: meme.likes || 0,
+          comments: meme.comments || [],
+          tags: meme.tags || []
+        }));
+        
+        return {
+          data: mappedMemes,
+          pagination: apiResponse.data.pagination
+        };
+      }
+      
+      // Fallback to the original response if it doesn't match the expected structure
       return response.data;
     } catch (error) {
       console.error("Error fetching memes:", error);
@@ -408,6 +437,29 @@ export const memeService = {
   getMemeById: async (id: string): Promise<Meme> => {
     try {
       const response = await api.get(`/api/memes/${id}`);
+      
+      // Map the API response to the expected format
+      const apiResponse = response.data;
+      
+      // Check if the response has the expected structure
+      if (apiResponse && apiResponse.success && apiResponse.data) {
+        const meme = apiResponse.data;
+        return {
+          id: meme._id || meme.id, // Use _id as id if available
+          title: meme.title,
+          description: meme.description || '',
+          url: meme.imageUrl || meme.url, // Use imageUrl as url if available
+          category: meme.category || 'Other',
+          author: meme.username || meme.author || 'Unknown',
+          authorId: meme.userId || meme.authorId || '',
+          createdAt: meme.createdAt,
+          likes: meme.likes || 0,
+          comments: meme.comments || [],
+          tags: meme.tags || []
+        };
+      }
+      
+      // Fallback to the original response if it doesn't match the expected structure
       return response.data;
     } catch (error) {
       console.error(`Error fetching meme ${id}:`, error);
@@ -431,10 +483,12 @@ export const memeService = {
   // Create a new meme
   createMeme: async (memeData: {
     title: string;
-    url: string;
+    url?: string;
+    imageUrl?: string;
     description?: string;
     category?: string;
     tags?: string[];
+    type?: 'generated' | 'uploaded';
   }): Promise<Meme> => {
     try {
       console.log("Creating meme with data:", memeData);
@@ -442,6 +496,8 @@ export const memeService = {
       // Ensure category is always a string
       const memeWithCategory = {
         ...memeData,
+        // If imageUrl is not provided but url is, use url as imageUrl
+        imageUrl: memeData.imageUrl || memeData.url,
         category: memeData.category || "Other" // Default to "Other" if category is undefined
       };
       
@@ -463,7 +519,7 @@ export const memeService = {
         const mockMeme: Meme = {
           id: `mock-${Date.now()}`,
           title: memeData.title,
-          url: memeData.url,
+          url: memeData.url || memeData.imageUrl || "",
           description: memeData.description || "",
           category: memeData.category || "Other", // Ensure category is a string
           tags: memeData.tags || [],
@@ -573,6 +629,13 @@ export const memeService = {
   addComment: async (id: string, text: string): Promise<Comment> => {
     try {
       const response = await api.post(`/api/memes/${id}/comments`, { text });
+      
+      // Check if the response has the expected structure
+      if (response.data && response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      
+      // Fallback to the original response if it doesn't match the expected structure
       return response.data;
     } catch (error) {
       console.error(`Error adding comment to meme ${id}:`, error);
@@ -794,27 +857,62 @@ export const authService = {
   
   login: async (credentials: { email: string; password: string }): Promise<{ token: string; user: User }> => {
     try {
-      const response = await api.post<ApiResponse>('/api/auth/login', credentials);
+      // Include credentials to ensure cookies are sent/received
+      const response = await api.post<ApiResponse>('/api/auth/login', credentials, {
+        withCredentials: true
+      });
       
       if (!response.data.success) {
         throw new Error(response.data.error || "Login failed");
       }
       
+      // Store in localStorage for client-side access
+      // The HTTP-only cookie will be used for API requests
+      if (response.data.data.token) {
+        localStorage.setItem('token', response.data.data.token);
+      }
+      
+      if (response.data.data.user) {
+        localStorage.setItem('user', JSON.stringify(response.data.data.user));
+        localStorage.setItem('wasLoggedIn', 'true');
+      }
+      
       return response.data.data;
     } catch (error: any) {
+      console.error("Login error:", error);
+      
       if (error.response?.data?.error) {
         throw new Error(error.response.data.error);
+      } else if (error.response?.status === 401) {
+        throw new Error("Invalid email or password");
+      } else if (error.response?.status === 400) {
+        throw new Error("Email and password are required");
+      } else if (!error.response) {
+        throw new Error("Network error. Please check your connection.");
       }
+      
       throw new Error(error.message || "Login failed");
     }
   },
   
   register: async (userData: { username: string; email: string; password: string }) => {
     try {
-      const response = await axios.post<ApiResponse>("/api/auth/register", userData);
+      const response = await axios.post<ApiResponse>("/api/auth/register", userData, {
+        withCredentials: true
+      });
       
       if (!response.data.success) {
         throw new Error(response.data.error || "Registration failed");
+      }
+      
+      // Store in localStorage for client-side access
+      if (response.data.data.token) {
+        localStorage.setItem('token', response.data.data.token);
+      }
+      
+      if (response.data.data.user) {
+        localStorage.setItem('user', JSON.stringify(response.data.data.user));
+        localStorage.setItem('wasLoggedIn', 'true');
       }
       
       return response.data.data;
@@ -828,7 +926,10 @@ export const authService = {
   
   getCurrentUser: async (config: any): Promise<User> => {
     try {
-      const response = await api.get('/api/auth/me', config);
+      const response = await api.get('/api/auth/me', {
+        ...config,
+        withCredentials: true
+      });
       return response.data.user;
     } catch (error) {
       console.error("Error getting current user:", error);
@@ -838,10 +939,21 @@ export const authService = {
 
   logout: async () => {
     try {
-      await api.post('/api/auth/logout');
+      // Call logout endpoint to clear cookies
+      await api.post('/api/auth/logout', {}, { withCredentials: true });
+      
+      // Clear localStorage
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
       return true;
     } catch (error) {
       console.error("Logout error:", error);
+      
+      // Even if the API call fails, clear localStorage
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
       return false;
     }
   }

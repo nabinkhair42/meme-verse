@@ -18,7 +18,9 @@ interface MemeCardProps {
   meme: Meme;
   isAuthenticated: boolean;
   onLikeToggle?: (meme: Meme, newState: boolean) => void;
+  isLiked: boolean;
   onSaveToggle?: (meme: Meme, newState: boolean) => void;
+  isSaved: boolean;
 }
 
 // Create global caches outside of component
@@ -35,12 +37,17 @@ function debounce(func: Function, wait: number) {
   };
 }
 
-export function MemeCard({ meme, ...props }: MemeCardProps) {
+export function MemeCard({ meme, isLiked, isSaved, ...props }: MemeCardProps) {
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
-  const [liked, setLiked] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [liked, setLiked] = useState(isLiked);
+  const [saved, setSaved] = useState(isSaved);
   const [isLoading, setIsLoading] = useState(false);
   const [likesCount, setLikesCount] = useState(meme.likes || 0);
+  
+  // Update likesCount when meme prop changes
+  useEffect(() => {
+    setLikesCount(meme.likes || 0);
+  }, [meme.likes]);
   
   // Use refs to track if we've already checked status to prevent infinite loops
   const likeChecked = useRef(false);
@@ -59,9 +66,10 @@ export function MemeCard({ meme, ...props }: MemeCardProps) {
       
       memeService.checkLikeStatus(meme.id)
         .then(response => {
-          setLiked(response.liked);
+          const isLiked = response?.liked || false;
+          setLiked(isLiked);
           // Update cache
-          globalLikeCache.set(meme.id, response.liked);
+          globalLikeCache.set(meme.id, isLiked);
         })
         .catch(error => {
           console.error("Error checking like status:", error);
@@ -82,9 +90,10 @@ export function MemeCard({ meme, ...props }: MemeCardProps) {
       
       memeService.checkSaveStatus(meme.id)
         .then(response => {
-          setSaved(response.saved);
+          const isSaved = response?.saved || false;
+          setSaved(isSaved);
           // Update cache
-          globalSaveCache.set(meme.id, response.saved);
+          globalSaveCache.set(meme.id, isSaved);
         })
         .catch(error => {
           console.error("Error checking save status:", error);
@@ -101,17 +110,42 @@ export function MemeCard({ meme, ...props }: MemeCardProps) {
     }
     
     setIsLoading(true);
+    const oldLikesCount = likesCount;
     try {
+      // Optimistic update for better UX
+      const newLikedState = !liked;
+      setLiked(newLikedState);
+      setLikesCount(prev => newLikedState ? prev + 1 : prev - 1);
+      
+      // Call API to toggle like
       const response = await memeService.likeMeme(meme.id);
-      setLiked(response.liked);
-      setLikesCount(response.likes);
+      
+      // Log the response for debugging
+      console.log(`Like response for meme ${meme.id}:`, response);
+      
+      // Update with actual server response
+      const isLiked = response?.liked || false;
+      const serverLikesCount = response?.likes || oldLikesCount;
+      
+      // Update the UI with the server's response
+      setLiked(isLiked);
+      setLikesCount(serverLikesCount);
+      
+      // Update the global cache
+      globalLikeCache.set(meme.id, isLiked);
       
       // Notify parent component
       if (props.onLikeToggle) {
-        props.onLikeToggle(meme, response.liked);
+        // Pass the server's like count to ensure consistency
+        const updatedMeme = { ...meme, likes: serverLikesCount };
+        props.onLikeToggle(updatedMeme, isLiked);
       }
     } catch (error) {
       console.error("Error liking meme:", error);
+      // Revert optimistic update on error
+      setLiked(!liked);
+      setLikesCount(oldLikesCount);
+      toast.error("Failed to update like status");
     } finally {
       setIsLoading(false);
     }
@@ -126,14 +160,15 @@ export function MemeCard({ meme, ...props }: MemeCardProps) {
     setIsLoading(true);
     try {
       const response = await memeService.saveMeme(meme.id);
-      setSaved(response.saved);
+      const isSaved = response?.saved || false;
+      setSaved(isSaved);
       
       // Notify parent component
       if (props.onSaveToggle) {
-        props.onSaveToggle(meme, response.saved);
+        props.onSaveToggle(meme, isSaved);
       }
       
-      toast.success(response.saved 
+      toast.success(isSaved 
         ? "Meme saved to your collection" 
         : "Meme removed from your collection");
     } catch (error) {
@@ -201,7 +236,14 @@ export function MemeCard({ meme, ...props }: MemeCardProps) {
               <span>{likesCount} likes</span>
             </div>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <span>{meme.comments?.length || 0} comments</span>
+              <span>
+                {/* Handle different ways the comment count might be stored */}
+                {(meme as any).commentCount !== undefined 
+                  ? (meme as any).commentCount 
+                  : Array.isArray(meme.comments) 
+                    ? meme.comments.length 
+                    : 0} comments
+              </span>
             </div>
           </div>
           

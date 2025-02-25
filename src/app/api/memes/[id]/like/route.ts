@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import clientPromise from "@/lib/mongodb";
 import { verifyAuth } from "@/lib/auth";
 import { successResponse, errorResponse } from "@/lib/apiResponse";
+import { LikedMemeModel } from "@/models/LikedMeme";
+import { MemeModel } from "@/models";
 
 export async function GET(
   request: NextRequest,
@@ -18,20 +19,23 @@ export async function GET(
       );
     }
     
-    // Get the database connection
-    const client = await clientPromise;
-    const db = client.db("meme-verse");
-    
     // IMPORTANT: Await the params object before accessing its properties
     const memeId = (await params).id;
+    const userId = user._id?.toString();
     
-    const userLike = await db.collection("likes").findOne({
-      memeId,
-      userId: user.id
-    });
+    if (!userId) {
+      return NextResponse.json(
+        errorResponse("Invalid user ID", 400),
+        { status: 400 }
+      );
+    }
+    
+    // Check if user liked this meme using LikedMemeModel
+    const isLiked = await LikedMemeModel.hasLikedMeme(userId, memeId);
+    
     
     return NextResponse.json(
-      successResponse({ liked: !!userLike }),
+      successResponse({ liked: isLiked }),
       { status: 200 }
     );
   } catch (error) {
@@ -59,63 +63,22 @@ export async function POST(
     
     // IMPORTANT: Await the params object before accessing its properties
     const memeId = (await params).id;
+    const userId = user._id?.toString();
     
-    const client = await clientPromise;
-    const db = client.db("meme-verse");
-    
-    // Get the meme
-    const meme = await db.collection("memes").findOne({ id: memeId });
-    
-    if (!meme) {
+    if (!userId) {
       return NextResponse.json(
-        errorResponse("Meme not found", 404),
-        { status: 404 }
+        errorResponse("Invalid user ID", 400),
+        { status: 400 }
       );
     }
     
-    // Check if user already liked this meme
-    const userLike = await db.collection("likes").findOne({
-      memeId,
-      userId: user.id
-    });
+    // Toggle like status using LikedMemeModel
+    // This will handle checking if already liked, toggling the status,
+    // and updating the meme's likes count
+    const liked = await LikedMemeModel.likeMeme(userId, memeId);
     
-    let liked = false;
-    let likes = meme.likes || 0;
-    
-    if (userLike) {
-      // User already liked this meme, so unlike it
-      await db.collection("likes").deleteOne({
-        memeId,
-        userId: user.id
-      });
-      
-      // Decrement likes count
-      likes = Math.max(0, likes - 1);
-      
-      // Update meme likes count
-      await db.collection("memes").updateOne(
-        { id: memeId },
-        { $set: { likes } }
-      );
-    } else {
-      // User hasn't liked this meme yet, so like it
-      await db.collection("likes").insertOne({
-        memeId,
-        userId: user.id,
-        createdAt: new Date().toISOString()
-      });
-      
-      // Increment likes count
-      likes = likes + 1;
-      
-      // Update meme likes count
-      await db.collection("memes").updateOne(
-        { id: memeId },
-        { $set: { likes } }
-      );
-      
-      liked = true;
-    }
+    // Get updated likes count
+    const likes = await LikedMemeModel.countLikes(memeId);
     
     return NextResponse.json(
       successResponse({ liked, likes }),

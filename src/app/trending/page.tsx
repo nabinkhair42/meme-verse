@@ -14,9 +14,12 @@ import { MemeCard } from "@/components/meme-card";
 import { useSelector } from "react-redux";
 import { RootState } from "@/redux/store";
 import { FaFire } from "react-icons/fa";
+import { LeftSidebar } from "@/components/home/left-sidebar";
+import { RightSidebar } from "@/components/home/right-sidebar";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function TrendingPage() {
-  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
   
   const [activeTab, setActiveTab] = useState("today");
   const [likedMemes, setLikedMemes] = useState<Record<string, boolean>>({});
@@ -67,10 +70,17 @@ export default function TrendingPage() {
     const checkInteractionStatus = async () => {
       if (!isAuthenticated || !data) return;
       
-      const allMemes = data.pages.flatMap(page => (page as any).memes);
+      const allMemes = data.pages.flatMap(page => {
+        // Check if page.memes exists and is an array
+        const memes = page && (page as any).memes;
+        return Array.isArray(memes) ? memes : [];
+      });
       
       for (const meme of allMemes) {
         try {
+          // Skip if meme or meme.id is undefined
+          if (!meme || !meme.id) continue;
+          
           // Only check if we haven't already checked
           if (likedMemes[meme.id] === undefined) {
             const isLiked = await memeService.checkLikeStatus(meme.id);
@@ -82,7 +92,7 @@ export default function TrendingPage() {
             setSavedMemes(prev => ({ ...prev, [meme.id]: isSaved }));
           }
         } catch (error) {
-          console.error(`Error checking interaction status for meme ${meme.id}:`, error);
+          console.error(`Error checking interaction status for meme:`, error);
         }
       }
     };
@@ -92,16 +102,22 @@ export default function TrendingPage() {
   
   // Handle like toggle
   const handleLikeToggle = (meme: any, newState: boolean) => {
+    if (!meme || !meme.id) return;
     setLikedMemes(prev => ({ ...prev, [meme.id]: newState }));
   };
   
   // Handle save toggle
   const handleSaveToggle = (meme: any, newState: boolean) => {
+    if (!meme || !meme.id) return;
     setSavedMemes(prev => ({ ...prev, [meme.id]: newState }));
   };
   
   // Flatten all memes from all pages
-  const allMemes = data?.pages.flatMap(page => (page as any).memes) || [];
+  const allMemes = data?.pages.flatMap(page => {
+    // Check if page.memes exists and is an array
+    const memes = page && (page as any).memes;
+    return Array.isArray(memes) ? memes : [];
+  }) || [];
   
   // Animation variants
   const container = {
@@ -120,60 +136,85 @@ export default function TrendingPage() {
   };
   
   return (
-    <div className="py-6 max-w-7xl mx-auto px-4">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold flex items-center mb-2">
-          <TrendingUp className="mr-2 h-8 w-8 text-primary" />
-          Trending Memes
-        </h1>
-        <p className="text-muted-foreground">
-          Discover the most popular memes that are making waves across MemeVerse
-        </p>
+    <div className="h-[calc(100vh-64px)] overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 h-full">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
+          {/* Left Sidebar - Fixed */}
+          <div className="hidden lg:block lg:col-span-3 h-[calc(100vh-64px)] pt-6">
+            <div className="pr-4 sticky top-[80px] max-h-[calc(100vh-80px)] overflow-y-auto">
+              <LeftSidebar isAuthenticated={isAuthenticated} user={user} />
+            </div>
+          </div>
+          
+          {/* Main Content - Scrollable */}
+          <div className="lg:col-span-6 h-[calc(100vh-64px)] pt-6">
+            <ScrollArea className="h-full pb-6">
+              <div className="pr-4">
+                <div className="mb-8">
+                  <h1 className="text-3xl font-bold flex items-center mb-2">
+                    <TrendingUp className="mr-2 h-8 w-8 text-primary" />
+                    Trending Memes
+                  </h1>
+                  <p className="text-muted-foreground">
+                    Discover the most popular memes that are making waves across MemeVerse
+                  </p>
+                </div>
+                
+                <Tabs defaultValue="today" onValueChange={setActiveTab}>
+                  <TabsList className="mb-6">
+                    <TabsTrigger value="today" className="flex items-center">
+                      <FaFire className="mr-2 h-4 w-4" />
+                      Today
+                    </TabsTrigger>
+                    <TabsTrigger value="week" className="flex items-center">
+                      <Clock className="mr-2 h-4 w-4" />
+                      This Week
+                    </TabsTrigger>
+                    <TabsTrigger value="month" className="flex items-center">
+                      <Award className="mr-2 h-4 w-4" />
+                      This Month
+                    </TabsTrigger>
+                    <TabsTrigger value="all-time" className="flex items-center">
+                      <TrendingUp className="mr-2 h-4 w-4" />
+                      All Time
+                    </TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="today" className="mt-0">
+                    {renderMemeGrid()}
+                  </TabsContent>
+                  
+                  <TabsContent value="week" className="mt-0">
+                    {renderMemeGrid()}
+                  </TabsContent>
+                  
+                  <TabsContent value="month" className="mt-0">
+                    {renderMemeGrid()}
+                  </TabsContent>
+                  
+                  <TabsContent value="all-time" className="mt-0">
+                    {renderMemeGrid()}
+                  </TabsContent>
+                </Tabs>
+              </div>
+            </ScrollArea>
+          </div>
+          
+          {/* Right Sidebar - Fixed */}
+          <div className="hidden lg:block lg:col-span-3 h-[calc(100vh-64px)] pt-6">
+            <div className="pl-4 sticky top-[80px] max-h-[calc(100vh-80px)] overflow-y-auto">
+              <RightSidebar />
+            </div>
+          </div>
+        </div>
       </div>
-      
-      <Tabs defaultValue="today" onValueChange={setActiveTab}>
-        <TabsList className="mb-6">
-          <TabsTrigger value="today" className="flex items-center">
-            <FaFire className="mr-2 h-4 w-4" />
-            Today
-          </TabsTrigger>
-          <TabsTrigger value="week" className="flex items-center">
-            <Clock className="mr-2 h-4 w-4" />
-            This Week
-          </TabsTrigger>
-          <TabsTrigger value="month" className="flex items-center">
-            <Award className="mr-2 h-4 w-4" />
-            This Month
-          </TabsTrigger>
-          <TabsTrigger value="all-time" className="flex items-center">
-            <TrendingUp className="mr-2 h-4 w-4" />
-            All Time
-          </TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="today" className="mt-0">
-          {renderMemeGrid()}
-        </TabsContent>
-        
-        <TabsContent value="week" className="mt-0">
-          {renderMemeGrid()}
-        </TabsContent>
-        
-        <TabsContent value="month" className="mt-0">
-          {renderMemeGrid()}
-        </TabsContent>
-        
-        <TabsContent value="all-time" className="mt-0">
-          {renderMemeGrid()}
-        </TabsContent>
-      </Tabs>
     </div>
   );
   
   function renderMemeGrid() {
     if (status === 'pending') {
       return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <Card key={i}>
               <CardContent className="p-0">
@@ -224,23 +265,25 @@ export default function TrendingPage() {
       <>
         <AnimatePresence>
           <motion.div 
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            className="grid grid-cols-1 md:grid-cols-2 gap-6"
             variants={container}
             initial="hidden"
             animate="show"
           >
-            {allMemes.map((meme) => (
-              <motion.div key={meme.id} variants={item} layout>
-                <MemeCard 
-                  meme={meme}
-                  isLiked={likedMemes[meme.id] || false}
-                  isSaved={savedMemes[meme.id] || false}
-                  isAuthenticated={isAuthenticated}
-                  onLikeToggle={handleLikeToggle}
-                  onSaveToggle={handleSaveToggle}
-                />
-              </motion.div>
-            ))}
+            {allMemes
+              .filter(meme => meme && meme.id) // Filter out any memes without an id
+              .map((meme) => (
+                <motion.div key={meme.id} variants={item} layout>
+                  <MemeCard 
+                    meme={meme}
+                    isLiked={likedMemes[meme.id] || false}
+                    isSaved={savedMemes[meme.id] || false}
+                    isAuthenticated={isAuthenticated}
+                    onLikeToggle={handleLikeToggle}
+                    onSaveToggle={handleSaveToggle}
+                  />
+                </motion.div>
+              ))}
           </motion.div>
         </AnimatePresence>
         
@@ -254,7 +297,7 @@ export default function TrendingPage() {
           )}
           
           {!hasNextPage && allMemes.length > 0 && (
-            <p className="text-muted-foreground">You&apos;ve reached the end!</p>
+            <p className="text-muted-foreground">You've reached the end!</p>
           )}
         </div>
       </>

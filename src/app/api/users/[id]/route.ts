@@ -6,6 +6,14 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Ensure params is properly handled
+    if (!params || !params.id) {
+      return NextResponse.json(
+        { error: "User ID is required" },
+        { status: 400 }
+      );
+    }
+
     const client = await clientPromise;
     const db = client.db("meme-verse");
     
@@ -32,6 +40,14 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Ensure params is properly handled
+    if (!params || !params.id) {
+      return NextResponse.json(
+        { error: "User ID is required" },
+        { status: 400 }
+      );
+    }
+
     const client = await clientPromise;
     const db = client.db("meme-verse");
     

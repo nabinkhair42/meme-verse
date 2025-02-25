@@ -52,22 +52,23 @@ export async function POST(
     const memeId = (await params).id;
     
     // Get comment data from request
-    const { content } = await request.json();
+    const data = await request.json();
     
-    if (!content) {
+    // Check if text exists
+    if (!data.text || typeof data.text !== 'string') {
       return NextResponse.json(
-        errorResponse("Comment content is required", 400),
+        errorResponse("Comment text is required and must be a string", 400),
         { status: 400 }
       );
     }
     
-    // Create comment in database
+    // Create comment in database with the text field mapped to content
     const newComment = await commentModel.create(
       {
         memeId,
-        content
+        content: data.text
       },
-      user._id,
+      user._id?.toString() || "",
       user.username,
       user.avatar
     );

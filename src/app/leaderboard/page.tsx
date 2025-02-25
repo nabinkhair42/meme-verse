@@ -342,39 +342,6 @@ export default function LeaderboardPage() {
           </TabsContent>
         </Tabs>
         
-        {/* Additional Stats Card */}
-        <div className="mt-8">
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <Medal className="h-5 w-5 text-primary" />
-            Fun Stats
-          </h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <h3 className="text-lg font-medium mb-1">Most Active Category</h3>
-                <p className="text-3xl font-bold">Programming</p>
-                <p className="text-muted-foreground text-sm mt-1">With 256 memes this month</p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <h3 className="text-lg font-medium mb-1">Fastest Rising</h3>
-                <p className="text-3xl font-bold">Wholesome</p>
-                <p className="text-muted-foreground text-sm mt-1">Up 45% from last month</p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <h3 className="text-lg font-medium mb-1">Most Commented</h3>
-                <p className="text-3xl font-bold">Reactions</p>
-                <p className="text-muted-foreground text-sm mt-1">Averaging 15 comments per meme</p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
       </motion.div>
     </div>
   );

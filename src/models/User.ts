@@ -1,7 +1,9 @@
 import { ObjectId, Document } from 'mongodb';
 import { dbService, DatabaseService } from '@/lib/db';
 import { User, UserCreateInput, UserUpdateInput } from '@/types/user';
-import { hashPassword, comparePassword } from '@/lib/auth';
+import { hashPassword, comparePassword } from '@/lib/password';
+import { SavedMemeModel } from './SavedMeme';
+import { LikedMemeModel } from './LikedMeme';
 
 // MongoDB document type for User
 interface UserDocument extends Document {
@@ -11,8 +13,6 @@ interface UserDocument extends Document {
   avatar?: string;
   bio?: string;
   joinDate: Date;
-  savedMemes?: string[];
-  likedMemes?: string[];
   role?: 'user' | 'admin';
 }
 
@@ -50,8 +50,6 @@ export class UserModel {
       password: hashedPassword,
       avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.username}`,
       joinDate: new Date(),
-      savedMemes: [],
-      likedMemes: [],
       role: 'user' as const
     };
     
@@ -228,125 +226,47 @@ export class UserModel {
    * Save a meme for a user
    */
   async saveMeme(userId: string, memeId: string): Promise<boolean> {
-    const userCollection = await dbService.getCollection<UserDocument>(this.collection);
-    
-    const objectId = DatabaseService.stringToObjectId(userId);
-    if (!objectId) {
-      return false;
-    }
-    
-    // Check if meme is already saved
-    const user = await userCollection.findOne({ 
-      _id: objectId,
-      savedMemes: memeId
-    });
-    
-    if (user) {
-      // Meme is already saved, remove it
-      await userCollection.updateOne(
-        { _id: objectId },
-        { $pull: { savedMemes: memeId } as any }
-      );
-      return false;
-    } else {
-      // Meme is not saved, add it
-      await userCollection.updateOne(
-        { _id: objectId },
-        { $addToSet: { savedMemes: memeId } }
-      );
-      return true;
-    }
+    // This method is now just a wrapper around the SavedMemeModel
+    return SavedMemeModel.saveMeme(userId, memeId);
   }
   
   /**
    * Like a meme for a user
    */
   async likeMeme(userId: string, memeId: string): Promise<boolean> {
-    const userCollection = await dbService.getCollection<UserDocument>(this.collection);
-    
-    const objectId = DatabaseService.stringToObjectId(userId);
-    if (!objectId) {
-      return false;
-    }
-    
-    // Check if meme is already liked
-    const user = await userCollection.findOne({ 
-      _id: objectId,
-      likedMemes: memeId
-    });
-    
-    if (user) {
-      // Meme is already liked, remove it
-      await userCollection.updateOne(
-        { _id: objectId },
-        { $pull: { likedMemes: memeId } as any }
-      );
-      return false;
-    } else {
-      // Meme is not liked, add it
-      await userCollection.updateOne(
-        { _id: objectId },
-        { $addToSet: { likedMemes: memeId } }
-      );
-      return true;
-    }
+    // This method is now just a wrapper around the LikedMemeModel
+    return LikedMemeModel.likeMeme(userId, memeId);
   }
   
   /**
    * Check if a user has saved a meme
    */
   async hasSavedMeme(userId: string, memeId: string): Promise<boolean> {
-    const userCollection = await dbService.getCollection<UserDocument>(this.collection);
-    
-    const objectId = DatabaseService.stringToObjectId(userId);
-    if (!objectId) {
-      return false;
-    }
-    
-    const user = await userCollection.findOne({ 
-      _id: objectId,
-      savedMemes: memeId
-    });
-    
-    return !!user;
+    // This method is now just a wrapper around the SavedMemeModel
+    return SavedMemeModel.hasSavedMeme(userId, memeId);
   }
   
   /**
    * Check if a user has liked a meme
    */
   async hasLikedMeme(userId: string, memeId: string): Promise<boolean> {
-    const userCollection = await dbService.getCollection<UserDocument>(this.collection);
-    
-    const objectId = DatabaseService.stringToObjectId(userId);
-    if (!objectId) {
-      return false;
-    }
-    
-    const user = await userCollection.findOne({ 
-      _id: objectId,
-      likedMemes: memeId
-    });
-    
-    return !!user;
+    // This method is now just a wrapper around the LikedMemeModel
+    return LikedMemeModel.hasLikedMeme(userId, memeId);
   }
   
   /**
-   * Get saved memes for a user
+   * Get all memes saved by a user
    */
   async getSavedMemes(userId: string): Promise<string[]> {
-    const userCollection = await dbService.getCollection<UserDocument>(this.collection);
-    
-    const objectId = DatabaseService.stringToObjectId(userId);
-    if (!objectId) {
-      return [];
-    }
-    
-    const user = await userCollection.findOne({ _id: objectId });
-    
-    if (!user || !user.savedMemes) {
-      return [];
-    }
-    
-    return user.savedMemes;
+    // This method is now just a wrapper around the SavedMemeModel
+    return SavedMemeModel.getSavedMemes(userId);
+  }
+  
+  /**
+   * Get all memes liked by a user
+   */
+  async getLikedMemes(userId: string): Promise<string[]> {
+    // This method is now just a wrapper around the LikedMemeModel
+    return LikedMemeModel.getLikedMemes(userId);
   }
 } 
