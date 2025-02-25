@@ -1,5 +1,4 @@
-import axios, { AxiosResponse, AxiosRequestConfig, InternalAxiosRequestConfig } from "axios";
-import { handleApiError } from "@/lib/api-utils";
+import axios, { InternalAxiosRequestConfig } from "axios";
 import { toast } from "sonner";
 
 const IMGBB_API_KEY = process.env.NEXT_PUBLIC_IMGBB_API_KEY;
@@ -51,6 +50,16 @@ export interface ApiResponse<T> {
   data: T;
   message?: string;
   success: boolean;
+}
+
+// Define the MemeTemplate interface
+export interface MemeTemplate {
+  id: string;
+  name: string;
+  url: string;
+  width?: number;
+  height?: number;
+  box_count?: number;
 }
 
 // Create an axios instance with interceptors
@@ -243,7 +252,7 @@ export const imgflipService = {
   },
 
   // Create a meme with the Imgflip API
-  createMeme: async (templateId: string | any, topText: string, bottomText: string): Promise<{ url: string }> => {
+  createMeme: async (templateId: string | MemeTemplate, topText: string, bottomText: string): Promise<{ url: string }> => {
     try {
       // Validate inputs
       if (!templateId) {
@@ -252,15 +261,15 @@ export const imgflipService = {
       }
       
       // Ensure templateId is a string
-      const id = typeof templateId === 'object' && templateId?.id 
+      const finalTemplateId = typeof templateId === 'object' && templateId.id 
         ? templateId.id 
         : String(templateId);
       
-      console.log(`Generating meme with template ${id}...`);
+      console.log(`Generating meme with template ${finalTemplateId}...`);
       
       // Call the API
       const response = await api.post('/api/generate', { 
-        templateId: id, 
+        templateId: finalTemplateId, 
         topText: topText || "", 
         bottomText: bottomText || "" 
       });
@@ -526,6 +535,83 @@ export const memeService = {
       throw error;
     }
   },
+
+  // Add uploadToImgBB function to memeService
+  uploadToImgBB: async (imageUrl: string): Promise<{ url: string }> => {
+    try {
+      console.log("Uploading image to ImgBB:", imageUrl);
+      
+      // If we're in development mode, just return the original URL
+      if (process.env.NODE_ENV === "development" && !IMGBB_API_KEY) {
+        console.log("Development mode: skipping actual upload to ImgBB");
+        return { url: imageUrl };
+      }
+      
+      // Create form data for ImgBB API
+      const formData = new FormData();
+      formData.append("key", IMGBB_API_KEY || "");
+      
+      // If the image is a URL, we need to use the URL parameter
+      if (imageUrl.startsWith('http')) {
+        formData.append("image", imageUrl);
+      } else {
+        // If it's base64, we need to use the image parameter
+        formData.append("image", imageUrl.split(',')[1]);
+      }
+      
+      // Call ImgBB API to upload image
+      const response = await axios.post(
+        "https://api.imgbb.com/1/upload",
+        formData
+      );
+      
+      if (!response.data.success) {
+        console.error("ImgBB API error:", response.data);
+        throw new Error("Failed to upload image to ImgBB");
+      }
+      
+      console.log("Image uploaded successfully:", response.data.data.url);
+      return { url: response.data.data.url };
+    } catch (error) {
+      console.error("Error uploading to ImgBB:", error);
+      throw error;
+    }
+  },
+
+  // Add functions for user-generated memes to memeService
+  getUserGeneratedMemes: async (): Promise<Meme[]> => {
+    try {
+      const response = await api.get('/api/memes/user-generated');
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching user-generated memes:", error);
+      return [];
+    }
+  },
+
+  createUserGeneratedMeme: async (memeData: {
+    title: string;
+    url: string;
+    category?: string;
+    description?: string;
+    tags?: string[];
+  }): Promise<Meme> => {
+    try {
+      console.log("Creating user-generated meme with data:", memeData);
+      
+      const response = await api.post('/api/memes/user-generated', memeData);
+      
+      if (!response.data || !response.data.id) {
+        console.error("Invalid response from create user-generated meme API:", response.data);
+        throw new Error("Invalid response from server");
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error("Error creating user-generated meme:", error);
+      throw error;
+    }
+  },
 };
 
 export const userService = {
@@ -667,6 +753,16 @@ export const authService = {
     } catch (error) {
       console.error("Error getting current user:", error);
       throw error;
+    }
+  },
+
+  logout: async () => {
+    try {
+      await api.post('/api/auth/logout');
+      return true;
+    } catch (error) {
+      console.error("Logout error:", error);
+      return false;
     }
   }
 }; 

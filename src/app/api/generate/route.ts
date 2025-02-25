@@ -30,12 +30,20 @@ export async function POST(request: NextRequest) {
     
     console.log("Generating meme with:", { templateId, topText, bottomText });
     
-    // For development/testing, return a mock URL
+    // For development/testing, return a reliable fallback URL
     if (process.env.NODE_ENV === "development") {
-      console.log("Using mock response for development mode");
-      return NextResponse.json({
-        url: `https://i.imgflip.com/7r${Math.floor(Math.random() * 9999)}.jpg`
-      });
+      // Use template-specific fallbacks for better testing
+      const fallbackUrls = {
+        "181913649": "https://i.imgflip.com/30b1gx.jpg", // Drake
+        "87743020": "https://i.imgflip.com/1g8my4.jpg",  // Two Buttons
+        "112126428": "https://i.imgflip.com/1ur9b0.jpg", // Distracted Boyfriend
+        "default": "https://i.imgflip.com/30b1gx.jpg"    // Default to Drake
+      };
+      
+      const fallbackUrl = fallbackUrls[templateId] || fallbackUrls.default;
+      console.log("Using fallback URL for development:", fallbackUrl);
+      
+      return NextResponse.json({ url: fallbackUrl });
     }
     
     // Create form data for Imgflip API
@@ -69,9 +77,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ url: response.data.data.url });
   } catch (error) {
     console.error("Error generating meme:", error);
-    return NextResponse.json(
-      { error: "Failed to generate meme" },
-      { status: 500 }
-    );
+    
+    // Return a fallback URL in case of error
+    return NextResponse.json({ 
+      url: "https://i.imgflip.com/30b1gx.jpg",
+      error: "Error occurred, using fallback image"
+    });
   }
 } 

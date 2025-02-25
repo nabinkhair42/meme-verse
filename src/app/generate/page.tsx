@@ -33,6 +33,7 @@ import DraggableText from "@/components/draggable-text";
 import { DndContext, DragEndEvent, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
 import { restrictToParentElement } from "@dnd-kit/modifiers";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { MemeTemplate } from "@/services/api";
 
 // Define a text element interface
 interface TextElement {
@@ -44,16 +45,6 @@ interface TextElement {
   color: string;
   strokeColor: string;
   rotation: number;
-}
-
-// Update the MemeTemplate interface
-interface MemeTemplate {
-  id: string;
-  name: string;
-  url: string;
-  width: number;
-  height: number;
-  box_count: number;
 }
 
 // Add a type guard function to check if an object is a MemeTemplate
@@ -379,42 +370,56 @@ export default function GeneratePage() {
       const topText = textElements[0]?.text || "";
       const bottomText = textElements.length > 1 ? textElements[1].text : "";
       
-      // The selectedTemplate is now always a string (the template ID)
-      const templateId = selectedTemplate;
+      // Get the template ID regardless of whether selectedTemplate is a string or object
+      let finalTemplateId: string;
+      
+      if (typeof selectedTemplate === 'string') {
+        finalTemplateId = selectedTemplate;
+      } else if (selectedTemplate && typeof selectedTemplate === 'object' && 'id' in selectedTemplate) {
+        finalTemplateId = selectedTemplate.id;
+      } else {
+        // Use a fallback template ID
+        finalTemplateId = "181913649"; // Drake template
+      }
       
       console.log("Generating meme with:", {
-        templateId,
+        templateId: finalTemplateId,
         topText,
         bottomText
       });
       
       try {
-        // Try to call the actual API
+        // Call the API to generate the meme
         const result = await imgflipService.createMeme(
-          templateId,
+          finalTemplateId,
           topText,
           bottomText
         );
         
+        console.log("API response:", result);
+        
         if (result && result.url) {
+          // Ensure the URL is valid
+          const url = result.url.startsWith('http') ? result.url : `https://i.imgflip.com/${result.url}`;
+          
           // Set the generated meme URL
-          setGeneratedMeme(result.url);
+          setGeneratedMeme(url);
           
           // Switch to preview tab
           setActiveTab("preview");
           
           toast.success("Meme generated successfully!");
         } else {
-          throw new Error("Failed to generate meme");
+          throw new Error("Invalid response from API");
         }
       } catch (apiError) {
         console.error("API error:", apiError);
         
-        // Fallback to mock URL for development
-        const mockUrl = `https://i.imgflip.com/7r${Math.floor(Math.random() * 9999)}.jpg`;
-        setGeneratedMeme(mockUrl);
+        // Use a reliable fallback image
+        const fallbackUrl = "https://i.imgflip.com/30b1gx.jpg"; // Drake meme
+        setGeneratedMeme(fallbackUrl);
         setActiveTab("preview");
-        toast.success("Meme generated with mock image (API unavailable)");
+        toast.warning("Using fallback image due to API error");
       }
     } catch (error) {
       console.error("Error generating meme:", error);
@@ -470,10 +475,34 @@ export default function GeneratePage() {
     setIsSaving(true);
     
     try {
+      // First, upload the image to ImgBB
+      console.log("Uploading meme to ImgBB...");
+      
+      // Convert image URL to base64 if it's not already
+      let imageData = generatedMeme;
+      
+      // If the image is a URL, we need to fetch it and convert to base64
+      if (generatedMeme.startsWith('http')) {
+        try {
+          const imgbbResponse = await memeService.uploadToImgBB(generatedMeme);
+          
+          if (!imgbbResponse || !imgbbResponse.url) {
+            throw new Error("Failed to upload image to ImgBB");
+          }
+          
+          imageData = imgbbResponse.url;
+          console.log("Image uploaded to ImgBB:", imageData);
+        } catch (uploadError) {
+          console.error("Error uploading to ImgBB:", uploadError);
+          toast.error("Failed to upload image. Using original URL.");
+          // Continue with the original URL if upload fails
+        }
+      }
+      
       // Create a new meme object
       const newMeme = {
         title,
-        url: generatedMeme,
+        url: imageData,
         category,
         description: "",
         tags: []
@@ -481,8 +510,8 @@ export default function GeneratePage() {
       
       console.log("Publishing meme with data:", newMeme);
       
-      // Save the meme to the database
-      const savedMeme = await memeService.createMeme(newMeme);
+      // Save the meme to the database as a user-generated meme
+      const savedMeme = await memeService.createUserGeneratedMeme(newMeme);
       
       // Update Redux store
       dispatch(addMeme(savedMeme));
@@ -557,7 +586,7 @@ export default function GeneratePage() {
                     ))}
                   </div>
                 ) : (
-                  <ScrollArea className="h-[500px] pr-4">
+                  <ScrollArea className="h-[700px] pr-4">
                     <motion.div 
                       className="space-y-2"
                       variants={container}
@@ -816,6 +845,12 @@ export default function GeneratePage() {
                                   fill
                                   className="object-contain"
                                   unoptimized
+                                  onError={(e) => {
+                                    console.error("Image failed to load:", generatedMeme);
+                                    // Set a fallback image
+                                    e.currentTarget.src = "https://i.imgflip.com/30b1gx.jpg";
+                                    toast.error("Failed to load generated image, using fallback");
+                                  }}
                                 />
                               </div>
                             </div>
@@ -874,6 +909,20 @@ export default function GeneratePage() {
                               >
                                 <DownloadCloud className="mr-2 h-4 w-4" />
                                 Download
+                              </Button>
+                              
+                              <Button 
+                                variant="outline"
+                                onClick={generateMeme}
+                                className="flex-1"
+                                disabled={isGenerating}
+                              >
+                                {isGenerating ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Wand2 className="mr-2 h-4 w-4" />
+                                )}
+                                Regenerate
                               </Button>
                               
                               <Button 

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import Image from "next/image";
 import Link from "next/link";
-import { Heart, MessageCircle, Upload, Bookmark, User, Calendar, Settings, Check, X } from "lucide-react";
+import { Heart, MessageCircle, Upload, Bookmark, User, Calendar, Settings, Check, X, ImageIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,6 +21,7 @@ import { ProtectedRoute } from "@/components/auth/protected-route";
 import { toast } from "sonner";
 import { updateProfile } from "@/redux/features/user/userSlice";
 import { Meme } from "@/redux/features/memes/memesSlice";
+import { formatDate } from "@/lib/utils";
 
 export default function ProfilePage() {
   const dispatch = useDispatch<AppDispatch>();
@@ -53,6 +54,10 @@ export default function ProfilePage() {
     hidden: { opacity: 0, y: 20 },
     show: { opacity: 1, y: 0 }
   };
+  
+  // Add state and data fetching for created memes
+  const [createdMemes, setCreatedMemes] = useState<Meme[]>([]);
+  const [isLoadingCreatedMemes, setIsLoadingCreatedMemes] = useState(true);
   
   useEffect(() => {
     const fetchUserData = async () => {
@@ -89,6 +94,26 @@ export default function ProfilePage() {
     
     fetchUserData();
   }, [user, items]);
+  
+  // Fetch created memes
+  useEffect(() => {
+    const fetchCreatedMemes = async () => {
+      try {
+        setIsLoadingCreatedMemes(true);
+        const memes = await userService.getUserMemes(user?.id || '');
+        setCreatedMemes(memes);
+      } catch (error) {
+        console.error("Error fetching created memes:", error);
+        toast.error("Failed to load created memes");
+      } finally {
+        setIsLoadingCreatedMemes(false);
+      }
+    };
+    
+    if (user) {
+      fetchCreatedMemes();
+    }
+  }, [user]);
   
   const handleEditProfile = () => {
     setIsEditing(true);
@@ -254,32 +279,16 @@ export default function ProfilePage() {
           </Card>
           
           {/* Memes Tabs */}
-          <Tabs defaultValue="uploaded" className="space-y-6">
-            <TabsList className="w-full flex justify-start border-b rounded-none h-auto p-0 bg-transparent">
-              <TabsTrigger 
-                value="uploaded"
-                className="flex items-center gap-1 px-4 py-2 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none"
-              >
-                <Upload className="h-4 w-4" />
-                Uploaded
-              </TabsTrigger>
-              <TabsTrigger
-                value="liked"
-                className="flex items-center gap-1 px-4 py-2 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none"
-              >
-                <Heart className="h-4 w-4" />
-                Liked
-              </TabsTrigger>
-              <TabsTrigger
-                value="saved"
-                className="flex items-center gap-1 px-4 py-2 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none"
-              >
-                <Bookmark className="h-4 w-4" />
-                Saved
-              </TabsTrigger>
+          <Tabs defaultValue="posts">
+            <TabsList className="mb-4">
+              <TabsTrigger value="posts">Posts</TabsTrigger>
+              <TabsTrigger value="created">Created Memes</TabsTrigger>
+              <TabsTrigger value="saved">Saved</TabsTrigger>
+              <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
             
-            <TabsContent value="uploaded">
+            {/* Posts Tab */}
+            <TabsContent value="posts">
               {isLoading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {[1, 2, 3].map((i) => (
@@ -364,75 +373,50 @@ export default function ProfilePage() {
               )}
             </TabsContent>
             
-            <TabsContent value="liked">
-              {isLoading ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {[1, 2, 3].map((i) => (
-                    <Card key={i} className="overflow-hidden">
-                      <CardContent className="p-0">
-                        <Skeleton className="h-[200px] w-full" />
-                        <div className="p-4 space-y-3">
-                          <Skeleton className="h-6 w-3/4" />
-                          <div className="flex justify-between">
-                            <Skeleton className="h-4 w-1/3" />
-                            <div className="flex gap-3">
-                              <Skeleton className="h-4 w-10" />
-                              <Skeleton className="h-4 w-10" />
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+            {/* Created Memes Tab */}
+            <TabsContent value="created">
+              {isLoadingCreatedMemes ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
+                    <Skeleton key={i} className="h-[300px] rounded-lg" />
                   ))}
                 </div>
-              ) : likedMemes.length === 0 ? (
-                <div className="text-center py-12 bg-muted/30 rounded-lg">
-                  <Heart className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                  <h3 className="text-lg font-semibold mb-2">No liked memes</h3>
-                  <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                    You haven't liked any memes yet. Browse around and hit the like button on memes you enjoy!
+              ) : createdMemes.length === 0 ? (
+                <div className="text-center py-12">
+                  <ImageIcon className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-lg font-semibold mb-2">No created memes yet</h3>
+                  <p className="text-muted-foreground mb-6">
+                    You haven't created any memes yet. Start creating!
                   </p>
                   <Button asChild>
-                    <Link href="/explore">Explore Memes</Link>
+                    <Link href="/generate">Create a Meme</Link>
                   </Button>
                 </div>
               ) : (
                 <motion.div 
-                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
                   variants={container}
                   initial="hidden"
                   animate="show"
                 >
-                  {likedMemes.map((meme) => (
+                  {createdMemes.map((meme) => (
                     <motion.div key={meme.id} variants={item}>
                       <Link href={`/meme/${meme.id}`}>
-                        <Card className="overflow-hidden hover:shadow-lg transition-shadow">
-                          <CardContent className="p-0">
-                            <div className="aspect-video relative">
-                              <Image
-                                src={meme.url}
-                                alt={meme.title}
-                                fill
-                                className="object-cover"
-                                unoptimized
-                              />
-                            </div>
-                            <div className="p-4">
-                              <h3 className="font-semibold mb-2 truncate">{meme.title}</h3>
-                              <div className="flex justify-between items-center">
-                                <p className="text-sm text-muted-foreground">
-                                  By {meme.author}
-                                </p>
-                                <div className="flex items-center gap-3">
-                                  <span className="flex items-center gap-1 text-sm">
-                                    <Heart className="h-4 w-4 fill-primary text-primary" /> {meme.likes}
-                                  </span>
-                                  <span className="flex items-center gap-1 text-sm">
-                                    <MessageCircle className="h-4 w-4" /> {meme.comments.length}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
+                        <Card className="overflow-hidden h-full hover:shadow-md transition-shadow">
+                          <div className="relative aspect-square">
+                            <Image
+                              src={meme.url}
+                              alt={meme.title}
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
+                          </div>
+                          <CardContent className="p-4">
+                            <h3 className="font-semibold truncate">{meme.title}</h3>
+                            <p className="text-sm text-muted-foreground">
+                              {formatDate(meme.createdAt)}
+                            </p>
                           </CardContent>
                         </Card>
                       </Link>
@@ -442,6 +426,7 @@ export default function ProfilePage() {
               )}
             </TabsContent>
             
+            {/* Saved Tab */}
             <TabsContent value="saved">
               {isLoading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -518,6 +503,11 @@ export default function ProfilePage() {
                   ))}
                 </motion.div>
               )}
+            </TabsContent>
+            
+            {/* Settings Tab */}
+            <TabsContent value="settings">
+              {/* Existing settings tab content */}
             </TabsContent>
           </Tabs>
         </motion.div>

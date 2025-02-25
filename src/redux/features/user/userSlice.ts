@@ -34,6 +34,26 @@ const initialState: UserState = {
   error: null
 };
 
+// Create the async thunk for adding generated memes
+export const addGeneratedMeme = createAsyncThunk(
+  'user/addGeneratedMeme',
+  async (memeId: string) => {
+    return memeId;
+  }
+);
+
+export const fetchUserProfile = createAsyncThunk(
+  'user/fetchProfile',
+  async (userId: string, { rejectWithValue }) => {
+    try {
+      const response = await userService.getProfile(userId);
+      return response;
+    } catch (err) {
+      return rejectWithValue('Failed to fetch user profile');
+    }
+  }
+);
+
 const userSlice = createSlice({
   name: 'user',
   initialState,
@@ -61,9 +81,6 @@ const userSlice = createSlice({
     addUploadedMeme: (state, action: PayloadAction<string>) => {
       state.uploadedMemes.push(action.payload);
     },
-    addGeneratedMeme: (state, action: PayloadAction<string>) => {
-      state.generatedMemes.push(action.payload);
-    },
     updateProfile: (state, action: PayloadAction<Partial<UserProfile>>) => {
       state.profile = { ...state.profile, ...action.payload };
     }
@@ -80,28 +97,21 @@ const userSlice = createSlice({
       .addCase(fetchUserProfile.rejected, (state, action) => {
         state.status = 'failed';
         state.error = action.payload as string;
+      })
+      .addCase(addGeneratedMeme.fulfilled, (state, action) => {
+        if (!state.generatedMemes.includes(action.payload)) {
+          state.generatedMemes.push(action.payload);
+        }
       });
   }
 });
 
+// Export only the non-duplicate actions
 export const { 
   toggleLikeMeme, 
   toggleSaveMeme, 
   addUploadedMeme, 
-  addGeneratedMeme,
   updateProfile 
 } = userSlice.actions;
-
-export const fetchUserProfile = createAsyncThunk(
-  'user/fetchProfile',
-  async (userId: string, { rejectWithValue }) => {
-    try {
-      const response = await userService.getProfile(userId);
-      return response;
-    } catch (error) {
-      return rejectWithValue('Failed to fetch user profile');
-    }
-  }
-);
 
 export default userSlice.reducer; 
