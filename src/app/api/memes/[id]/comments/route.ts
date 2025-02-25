@@ -5,14 +5,14 @@ import { v4 as uuidv4 } from "uuid";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
     const client = await clientPromise;
     const db = client.db("meme-verse");
     
     // Get the ID from params
-    const memeId = String(params.id);
+    const memeId = String(context.params.id);
     
     // Get comments for this meme
     const comments = await db.collection("comments")
@@ -32,7 +32,7 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
     const user = await verifyAuth(request);
@@ -57,7 +57,7 @@ export async function POST(
     const db = client.db("meme-verse");
     
     // Get the ID from params
-    const memeId = String(params.id);
+    const memeId = String(context.params.id);
     
     // Create new comment
     const newComment = {
@@ -75,7 +75,7 @@ export async function POST(
     // Update meme with new comment
     await db.collection("memes").updateOne(
       { id: memeId },
-      { $push: { comments: newComment } }
+      { $push: { comments: newComment.id } as any }
     );
     
     return NextResponse.json(newComment);
