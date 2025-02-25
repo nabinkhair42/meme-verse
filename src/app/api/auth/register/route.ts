@@ -1,77 +1,72 @@
 import { NextRequest, NextResponse } from "next/server";
-import clientPromise from "@/lib/mongodb";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import { userModel } from "@/models";
 import { successResponse, errorResponse } from "@/lib/apiResponse";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-
+/**
+ * POST /api/auth/register - Register a new user
+ */
 export async function POST(request: NextRequest) {
   try {
-    const { username, email, password } = await request.json();
+    // Get user data from request
+    const userData = await request.json();
     
-    if (!username || !email || !password) {
+    // Validate required fields
+    if (!userData.username || !userData.email || !userData.password) {
       return NextResponse.json(
-        errorResponse("All fields are required", 400),
+        errorResponse("Username, email, and password are required", 400),
         { status: 400 }
       );
     }
     
-    const client = await clientPromise;
-    const db = client.db("meme-verse");
-    
-    // Check if user already exists
-    const existingUser = await db.collection("users").findOne({
-      $or: [{ email }, { username }]
-    });
-    
-    if (existingUser) {
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(userData.email)) {
       return NextResponse.json(
-        errorResponse("User already exists", 400),
+        errorResponse("Invalid email format", 400),
         { status: 400 }
       );
     }
     
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    // Validate password length
+    if (userData.password.length < 6) {
+      return NextResponse.json(
+        errorResponse("Password must be at least 6 characters", 400),
+        { status: 400 }
+      );
+    }
     
-    // Create user
-    const newUser = {
-      username,
-      email,
-      password: hashedPassword,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
-      bio: "",
-      joinDate: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    
-    await db.collection("users").insertOne(newUser);
-    
-    // Create token
-    const token = jwt.sign(
-      { email, username },
-      JWT_SECRET,
-      { expiresIn: "7d" }
-    );
-    
-    // Remove password from user object
-    const { password: _, ...userWithoutPassword } = newUser;
-    
-    return NextResponse.json(
-      successResponse(
-        { token, user: userWithoutPassword },
-        "Registration successful",
-        201
-      ),
-      { status: 201 }
-    );
+    try {
+      // Create user in database
+      const newUser = await userModel.create({
+        username: userData.username,
+        email: userData.email,
+        password: userData.password
+      });
+      
+      // Remove password from response
+      if (newUser.password) {
+        delete newUser.password;
+      }
+      
+      return NextResponse.json(
+        successResponse(newUser, "User registered successfully"),
+        { status: 201 }
+      );
+    } catch (error: any) {
+      // Handle duplicate email or username
+      if (error.message.includes("already exists") || error.message.includes("already taken")) {
+        return NextResponse.json(
+          errorResponse(error.message, 409),
+          { status: 409 }
+        );
+      }
+      
+      throw error;
+    }
   } catch (error) {
-    console.error("Registration error:", error);
+    console.error("Error registering user:", error);
     return NextResponse.json(
-      errorResponse("Registration failed", 500),
+      errorResponse("Failed to register user", 500),
       { status: 500 }
     );
   }

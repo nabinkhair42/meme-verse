@@ -79,6 +79,7 @@ export const login = createAsyncThunk(
       toast.success('Login successful');
       localStorage.setItem('token', response.token);
       localStorage.setItem('user', JSON.stringify(response.user));
+      localStorage.setItem('wasLoggedIn', 'true');
       
       return response;
     } catch (error: any) {

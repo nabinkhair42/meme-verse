@@ -39,8 +39,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.removeItem('user');
             dispatch(clearUser());
             
-            // Show a toast notification
-            toast.error("Your session has expired. Please log in again.");
+            // Don't show toast on initial load to avoid annoying users
+            // Only show if they were previously logged in
+            if (localStorage.getItem('wasLoggedIn') === 'true') {
+              toast.error("Your session has expired. Please log in again.");
+            }
+            localStorage.removeItem('wasLoggedIn');
           }
         } else {
           console.log('No token found, user is not authenticated');

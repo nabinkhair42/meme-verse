@@ -1,85 +1,159 @@
 import { NextRequest, NextResponse } from "next/server";
-import clientPromise from "@/lib/mongodb";
+import { memeModel } from "@/models";
+import { verifyAuth } from "@/lib/auth";
+import { successResponse, errorResponse } from "@/lib/apiResponse";
 
+/**
+ * GET /api/memes/[id] - Get a meme by ID
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const client = await clientPromise;
-    const db = client.db("meme-verse");
+    // IMPORTANT: Await the params object before accessing its properties
+    const memeId = (await params).id;
     
-    const meme = await db.collection("memes").findOne({ id: params.id });
+    // Get meme from database
+    const meme = await memeModel.findById(memeId);
     
     if (!meme) {
       return NextResponse.json(
-        { error: "Meme not found" },
+        errorResponse("Meme not found", 404),
         { status: 404 }
       );
     }
     
-    return NextResponse.json(meme);
-  } catch (error) {
     return NextResponse.json(
-      { error: (error as Error).message },
+      successResponse(meme),
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Error fetching meme:", error);
+    return NextResponse.json(
+      errorResponse("Failed to fetch meme", 500),
       { status: 500 }
     );
   }
 }
 
+/**
+ * PATCH /api/memes/[id] - Update a meme
+ */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const client = await clientPromise;
-    const db = client.db("meme-verse");
+    // Verify user is authenticated
+    const user = await verifyAuth(request);
     
-    const data = await request.json();
-    
-    const result = await db
-      .collection("memes")
-      .updateOne({ id: params.id }, { $set: data });
-    
-    if (result.matchedCount === 0) {
+    if (!user) {
       return NextResponse.json(
-        { error: "Meme not found" },
+        errorResponse("Unauthorized", 401),
+        { status: 401 }
+      );
+    }
+    
+    // IMPORTANT: Await the params object before accessing its properties
+    const memeId = (await params).id;
+    
+    // Get meme from database
+    const meme = await memeModel.findById(memeId);
+    
+    if (!meme) {
+      return NextResponse.json(
+        errorResponse("Meme not found", 404),
         { status: 404 }
       );
     }
     
-    const updatedMeme = await db.collection("memes").findOne({ id: params.id });
+    // Check if user is the owner of the meme
+    // Convert both to string for comparison
+    if (String(meme.userId) !== String(user._id)) {
+      return NextResponse.json(
+        errorResponse("You are not authorized to update this meme", 403),
+        { status: 403 }
+      );
+    }
     
-    return NextResponse.json(updatedMeme);
-  } catch (error) {
+    // Get update data from request
+    const updateData = await request.json();
+    
+    // Update meme in database
+    const updatedMeme = await memeModel.update(memeId, updateData);
+    
     return NextResponse.json(
-      { error: (error as Error).message },
+      successResponse(updatedMeme, "Meme updated successfully"),
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Error updating meme:", error);
+    return NextResponse.json(
+      errorResponse("Failed to update meme", 500),
       { status: 500 }
     );
   }
 }
 
+/**
+ * DELETE /api/memes/[id] - Delete a meme
+ */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const client = await clientPromise;
-    const db = client.db("meme-verse");
+    // Verify user is authenticated
+    const user = await verifyAuth(request);
     
-    const result = await db.collection("memes").deleteOne({ id: params.id });
-    
-    if (result.deletedCount === 0) {
+    if (!user) {
       return NextResponse.json(
-        { error: "Meme not found" },
+        errorResponse("Unauthorized", 401),
+        { status: 401 }
+      );
+    }
+    
+    // IMPORTANT: Await the params object before accessing its properties
+    const memeId = (await params).id;
+    
+    // Get meme from database
+    const meme = await memeModel.findById(memeId);
+    
+    if (!meme) {
+      return NextResponse.json(
+        errorResponse("Meme not found", 404),
         { status: 404 }
       );
     }
     
-    return NextResponse.json({ success: true });
-  } catch (error) {
+    // Check if user is the owner of the meme or an admin
+    // Convert both to string for comparison
+    if (String(meme.userId) !== String(user._id) && user.role !== 'admin') {
+      return NextResponse.json(
+        errorResponse("You are not authorized to delete this meme", 403),
+        { status: 403 }
+      );
+    }
+    
+    // Delete meme from database
+    const deleted = await memeModel.delete(memeId);
+    
+    if (!deleted) {
+      return NextResponse.json(
+        errorResponse("Failed to delete meme", 500),
+        { status: 500 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: (error as Error).message },
+      successResponse({ success: true }, "Meme deleted successfully"),
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Error deleting meme:", error);
+    return NextResponse.json(
+      errorResponse("Failed to delete meme", 500),
       { status: 500 }
     );
   }

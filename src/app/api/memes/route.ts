@@ -1,118 +1,106 @@
 import { NextRequest, NextResponse } from "next/server";
-import clientPromise from "@/lib/mongodb";
+import { memeModel } from "@/models";
 import { verifyAuth } from "@/lib/auth";
+import { successResponse, errorResponse } from "@/lib/apiResponse";
+import { SearchParams } from "@/types/api";
 
+/**
+ * GET /api/memes - Get all memes with pagination and filters
+ */
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const sort = searchParams.get("sort") || "newest";
-    const category = searchParams.get("category");
-    const search = searchParams.get("search");
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "10");
+    // Get query parameters
+    const url = new URL(request.url);
+    const page = parseInt(url.searchParams.get("page") || "1");
+    const limit = parseInt(url.searchParams.get("limit") || "10");
+    const search = url.searchParams.get("search") || "";
+    const sort = url.searchParams.get("sort") || "newest";
+    const category = url.searchParams.get("category") || "";
+    const type = url.searchParams.get("type") || "";
     
-    const client = await clientPromise;
-    const db = client.db("meme-verse");
-    
-    // Build query
-    const query: any = {};
-    
-    if (category) {
-      query.category = category;
-    }
-    
-    if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } }
-      ];
-    }
-    
-    // Build sort
-    const sortOptions: any = {};
-    
-    if (sort === "newest") {
-      sortOptions.createdAt = -1;
-    } else if (sort === "oldest") {
-      sortOptions.createdAt = 1;
-    } else if (sort === "likes") {
-      sortOptions.likes = -1;
-    } else if (sort === "comments") {
-      sortOptions.comments = -1;
-    }
-    
-    // Get total count
-    const total = await db.collection("memes").countDocuments(query);
-    
-    // Get memes
-    const memes = await db.collection("memes")
-      .find(query)
-      .sort(sortOptions)
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .toArray();
-    
-    return NextResponse.json({
-      memes,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit)
-      }
+    // Create search params
+    const params: SearchParams = {
+      page,
+      limit,
+      search,
+      sort,
+      category,
+      type
+    };
+    // Get memes from database
+    const result = await memeModel.findAll({
+      page: params.page,
+      limit: params.limit,
+      search: params.search,
+      sort: params.sort as "newest" | "oldest" | "popular" | "comments" | undefined,
+      category: params.category,
+      type: params.type
     });
+    
+    return NextResponse.json(
+      successResponse(result),
+      { status: 200 }
+    );
   } catch (error) {
     console.error("Error fetching memes:", error);
     return NextResponse.json(
-      { error: "Failed to fetch memes" },
+      errorResponse("Failed to fetch memes", 500),
       { status: 500 }
     );
   }
 }
 
+/**
+ * POST /api/memes - Create a new meme
+ */
 export async function POST(request: NextRequest) {
   try {
+    // Verify user is authenticated
     const user = await verifyAuth(request);
     
     if (!user) {
       return NextResponse.json(
-        { error: "Unauthorized" },
+        errorResponse("Unauthorized", 401),
         { status: 401 }
       );
     }
     
-    const { title, url, description, category, tags } = await request.json();
+    // Get meme data from request
+    const memeData = await request.json();
     
-    if (!title || !url) {
+    // Validate required fields
+    if (!memeData.title || !memeData.imageUrl) {
       return NextResponse.json(
-        { error: "Title and URL are required" },
+        errorResponse("Title and image URL are required", 400),
         { status: 400 }
       );
     }
     
-    const client = await clientPromise;
-    const db = client.db("meme-verse");
+    // Create meme in database
+    const newMeme = await memeModel.create(
+      {
+        title: memeData.title,
+        imageUrl: memeData.imageUrl,
+        description: memeData.description,
+        tags: memeData.tags,
+        category: memeData.category,
+        type: memeData.type || 'uploaded',
+        templateId: memeData.templateId,
+        templateUrl: memeData.templateUrl
+      },
+      user._id?.toString() || "",
+      user.username,
+      user.avatar
+    );
     
-    // Create new meme
-    const newMeme = {
-      title,
-      url,
-      description: description || "",
-      category: category || "Other",
-      tags: tags || [],
-      author: user.username,
-      authorId: user.id,
-      createdAt: new Date().toISOString(),
-      likes: 0,
-      comments: []
-    };
-    
-    await db.collection("memes").insertOne(newMeme);
-    
-    return NextResponse.json(newMeme, { status: 201 });
-  } catch (error) {
     return NextResponse.json(
-      { error: (error as Error).message },
+      successResponse(newMeme, "Meme created successfully"),
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error("Error creating meme:", error);
+    return NextResponse.json(
+      errorResponse("Failed to create meme", 500),
       { status: 500 }
     );
   }

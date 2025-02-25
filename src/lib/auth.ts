@@ -1,77 +1,81 @@
 import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
-import clientPromise from "@/lib/mongodb";
+import bcrypt from "bcryptjs";
+import { User } from "@/types/user";
+import { userModel } from "@/models";
 
-const JWT_SECRET = process.env.JWT_SECRET!;
+// JWT secret key
+const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
-export async function verifyAuth(request: NextRequest) {
+/**
+ * Hash a password
+ */
+export async function hashPassword(password: string): Promise<string> {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(password, salt);
+}
+
+/**
+ * Compare a password with a hash
+ */
+export async function comparePassword(password: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(password, hash);
+}
+
+/**
+ * Generate a JWT token for a user
+ */
+export function generateToken(user: User): string {
+  return jwt.sign(
+    { 
+      id: user._id, 
+      email: user.email, 
+      username: user.username,
+      role: user.role || 'user'
+    },
+    JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+}
+
+/**
+ * Verify a JWT token
+ */
+export function verifyToken(token: string): any {
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Verify authentication from a request
+ */
+export async function verifyAuth(request: NextRequest): Promise<User | null> {
   try {
     // Get token from Authorization header
     const authHeader = request.headers.get("Authorization");
     
-    if (!authHeader) {
-      console.log(`No Authorization header found for request to ${request.url}`);
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return null;
     }
     
-    if (!authHeader.startsWith("Bearer ")) {
-      console.log("Invalid Authorization header format, expected 'Bearer <token>'");
-      return null;
-    }
-    
-    const token = authHeader.substring(7);
-    
-    if (!token || token === "undefined" || token === "null") {
-      console.log(`Invalid token found: "${token}"`);
-      return null;
-    }
+    const token = authHeader.split(" ")[1];
     
     // Verify token
-    try {
-      // Log the token for debugging (only first few characters)
-      console.log(`Verifying token: ${token.substring(0, 10)}...`);
-      
-      const decoded = jwt.verify(token, JWT_SECRET) as any;
-      
-      if (!decoded) {
-        console.log("Token verification failed: decoded payload is empty");
-        return null;
-      }
-      
-      console.log("Token decoded successfully:", {
-        id: decoded.id,
-        username: decoded.username
-      });
-      
-      if (!decoded.id) {
-        console.log("Token verification failed: no id in payload", decoded);
-        return null;
-      }
-      
-      // Get user from database
-      const client = await clientPromise;
-      const db = client.db("meme-verse");
-      
-      // Try to find by id or _id
-      const user = await db.collection("users").findOne({
-        $or: [
-          { id: decoded.id },
-          { _id: decoded.id }
-        ]
-      });
-      
-      if (!user) {
-        return null;
-      }
-      
-      
-      // Return user without password
-      const { password, ...userWithoutPassword } = user;
-      return userWithoutPassword;
-    } catch (jwtError: any) {
+    const decoded = verifyToken(token);
+    
+    if (!decoded || !decoded.id) {
       return null;
     }
+    
+    // Get user from database
+    const user = await userModel.findById(decoded.id);
+    
+    return user;
   } catch (error) {
+    console.error("Auth error:", error);
     return null;
   }
 } 

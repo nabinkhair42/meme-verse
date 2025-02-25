@@ -74,25 +74,25 @@ const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "",
 });
 
-// Add a request interceptor to include the token in all requests
+// Add a request interceptor to automatically add the token to all requests
 api.interceptors.request.use(
-  (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
-    if (typeof window !== 'undefined') {
-      try {
-        const token = localStorage.getItem('token');
-        if (token && token !== 'undefined' && token !== 'null') {
-          config.headers = config.headers || {};
-          config.headers.Authorization = `Bearer ${token}`;
-          // Log token for debugging (remove in production)
-          console.log(`Adding token to request: ${token.substring(0, 15)}...`);
-        }
-      } catch (error) {
-        console.error('Error accessing localStorage:', error);
-      }
+  (config) => {
+    // Get token from localStorage
+    const token = localStorage.getItem('token');
+    
+    // If token exists, add it to the Authorization header
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+      console.log(`Adding token to request: ${token.substring(0, 15)}...`);
+    } else {
+      console.log(`No token available for request to ${config.url}`);
     }
+    
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    return Promise.reject(error);
+  }
 );
 
 // Add a response interceptor to handle 401 errors
@@ -104,63 +104,73 @@ api.interceptors.response.use(
     // If there's no response, it's likely a network error
     if (!error.response) {
       console.error("Network error:", error.message);
-      toast.error("Network error. Please check your connection.");
+      // Don't show toast for validation requests to avoid spam
+      if (!originalRequest.url.includes('/api/auth/validate')) {
+        toast.error("Network error. Please check your connection.");
+      }
       return Promise.reject(error);
     }
     
-    // Log all API errors for debugging
-    console.error(`API Error (${error.response.status}):`, {
-      url: originalRequest.url,
-      method: originalRequest.method,
-      status: error.response.status,
-      data: error.response.data
-    });
-    
-    // Handle specific error codes
+    // Handle 401 Unauthorized errors
     if (error.response.status === 401) {
       console.log("401 Unauthorized error detected");
       
-      // Only handle token refresh if we haven't already tried
-      if (!originalRequest._retry) {
-        originalRequest._retry = true;
+      // For validation requests, never retry - just fail cleanly
+      if (originalRequest.url.includes('/api/auth/validate')) {
+        // Set a flag to remember user was logged in before
+        localStorage.setItem('wasLoggedIn', 'true');
         
-        try {
-          // Check if we have a token
-          const token = localStorage.getItem('token');
-          
-          if (!token) {
-            console.log("No token found in localStorage");
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            
-            // Only redirect if we're not already on the login page
-            if (!window.location.pathname.includes('/login') && 
-                !window.location.pathname.includes('/register') &&
-                !window.location.pathname.includes('/debug')) {
-              toast.error("Please log in to continue");
-              window.location.href = '/login';
-            }
-            return Promise.reject(error);
-          }
-          
-          console.log("Retrying request with existing token");
-          return api(originalRequest);
-        } catch (refreshError) {
-          console.error("Token refresh error:", refreshError);
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          
-          if (!window.location.pathname.includes('/login') && 
-              !window.location.pathname.includes('/register') &&
-              !window.location.pathname.includes('/debug')) {
-            toast.error("Your session has expired. Please log in again.");
-            window.location.href = '/login';
-          }
-          return Promise.reject(error);
+        // Clear auth data
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        
+        return Promise.reject(error);
+      }
+      
+      // If this is already a retry, don't retry again
+      if (originalRequest._retry) {
+        // Clear auth data on persistent auth failures
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        
+        // Redirect to login if needed
+        if (typeof window !== 'undefined' && 
+            !window.location.pathname.includes('/login') &&
+            !window.location.pathname.includes('/register')) {
+          toast.error("Your session has expired. Please log in again.");
+          window.location.href = '/login';
         }
+        
+        return Promise.reject(error);
+      }
+      
+      // Mark as retry attempt
+      originalRequest._retry = true;
+      
+      // Try to get a new token or handle the error
+      try {
+        // You could implement token refresh here if needed
+        console.log("Retrying request with existing token");
+        return api(originalRequest);
+      } catch (refreshError) {
+        console.error("Error refreshing auth:", refreshError);
+        
+        // Clear auth data
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        
+        // Redirect to login
+        if (typeof window !== 'undefined' && 
+            !window.location.pathname.includes('/login') &&
+            !window.location.pathname.includes('/register')) {
+          window.location.href = '/login';
+        }
+        
+        return Promise.reject(error);
       }
     }
     
+    // Handle other errors
     return Promise.reject(error);
   }
 );
@@ -471,45 +481,79 @@ export const memeService = {
   },
 
   // Like a meme
-  toggleLike: async (id: string): Promise<{ liked: boolean; likes: number }> => {
+  likeMeme: async (memeId: string): Promise<{ liked: boolean; likes: number }> => {
     try {
-      const response = await api.post(`/api/memes/${id}/like`);
-      return response.data;
-    } catch (error) {
-      console.error(`Error toggling like for meme ${id}:`, error);
+      const response = await api.post<ApiResponse>(`/api/memes/${memeId}/like`);
+      
+      if (!response.data.success) {
+        throw new Error(response.data.error || "Failed to update like status");
+      }
+      
+      return response.data.data;
+    } catch (error: any) {
+      console.error("Error liking meme:", error);
       throw error;
     }
   },
 
   // Check if user has liked a meme
-  checkLikeStatus: async (id: string): Promise<boolean> => {
+  checkLikeStatus: async (memeId: string): Promise<{ liked: boolean }> => {
     try {
-      const response = await api.get(`/api/memes/${id}/like`);
-      return response.data.liked;
-    } catch (error) {
-      console.error(`Error checking like status for meme ${id}:`, error);
-      return false;
+      // Throttle requests to prevent spamming
+      const cacheKey = `like-${memeId}`;
+      if (!throttleRequest(cacheKey)) {
+        return { liked: false };
+      }
+      
+      const response = await api.get<ApiResponse>(`/api/memes/${memeId}/like`);
+      
+      if (!response.data.success) {
+        throw new Error(response.data.error || "Failed to check like status");
+      }
+      
+      return response.data.data;
+    } catch (error: any) {
+      console.error("Error checking like status:", error);
+      // Return default value on error instead of rethrowing
+      return { liked: false };
     }
   },
 
   // Check if user has saved a meme
-  checkSaveStatus: async (id: string): Promise<boolean> => {
+  checkSaveStatus: async (memeId: string): Promise<{ saved: boolean }> => {
     try {
-      const response = await api.get(`/api/memes/${id}/save`);
-      return response.data.saved;
-    } catch (error) {
-      console.error(`Error checking save status for meme ${id}:`, error);
-      return false;
+      // Throttle requests to prevent spamming
+      const cacheKey = `save-${memeId}`;
+      if (!throttleRequest(cacheKey)) {
+        return { saved: false };
+      }
+      
+      const response = await api.get<ApiResponse>(`/api/memes/${memeId}/save`);
+      
+      if (!response.data.success) {
+        throw new Error(response.data.error || "Failed to check save status");
+      }
+      
+      return response.data.data;
+    } catch (error: any) {
+      console.error("Error checking save status:", error);
+      // Return default value on error instead of rethrowing
+      return { saved: false };
     }
   },
 
   // Toggle save on a meme
-  toggleSave: async (id: string): Promise<{ saved: boolean }> => {
+  saveMeme: async (memeId: string): Promise<{ saved: boolean }> => {
     try {
-      const response = await api.post(`/api/memes/${id}/save`);
-      return response.data;
-    } catch (error) {
-      console.error(`Error toggling save for meme ${id}:`, error);
+      const response = await api.post<ApiResponse>(`/api/memes/${memeId}/save`);
+      
+      if (!response.data.success) {
+        throw new Error(response.data.error || "Failed to update save status");
+      }
+      
+      return response.data.data;
+    } catch (error: any) {
+      console.error("Error saving meme:", error);
       throw error;
     }
   },
@@ -713,19 +757,25 @@ export const authService = {
     try {
       // Add a timestamp to prevent caching
       const timestamp = new Date().getTime();
-      const response = await api.get(`/api/auth/validate?t=${timestamp}`);
+      const response = await api.get<ApiResponse>(`/api/auth/validate?t=${timestamp}`);
       
-      if (!response.data || !response.data.user) {
-        console.error("Invalid response from validate endpoint:", response.data);
-        throw new Error("Invalid response from server");
+      if (!response.data.success) {
+        // Clear invalid tokens from localStorage
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        throw new Error(response.data.error || "Invalid token");
       }
       
-      return response.data.user;
-    } catch (error) {
+      return response.data.data.user;
+    } catch (error: any) {
       console.error("Error validating token:", error);
       
+      // Clear invalid tokens from localStorage
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
       // Check if it's a network error
-      if (!error) {
+      if (!error.response) {
         console.log("Network error - using fallback");
         // Try to get user from localStorage as fallback
         try {
@@ -795,4 +845,21 @@ export const authService = {
       return false;
     }
   }
+};
+
+// Add a request throttling mechanism
+const requestThrottles = new Map<string, number>();
+
+// Helper function to throttle requests
+const throttleRequest = (key: string, timeMs: number = 5000): boolean => {
+  const now = Date.now();
+  const lastRequest = requestThrottles.get(key) || 0;
+  
+  if (now - lastRequest < timeMs) {
+    console.log(`Request to ${key} throttled (too frequent)`);
+    return false;
+  }
+  
+  requestThrottles.set(key, now);
+  return true;
 }; 

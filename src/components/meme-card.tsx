@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -11,82 +11,137 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { Meme } from "@/redux/features/memes/memesSlice";
 import { memeService } from "@/services/api";
+import { useSelector } from "react-redux";
+import { RootState } from "@/redux/store";
 
 interface MemeCardProps {
   meme: Meme;
-  isLiked: boolean;
-  isSaved: boolean;
   isAuthenticated: boolean;
   onLikeToggle?: (meme: Meme, newState: boolean) => void;
   onSaveToggle?: (meme: Meme, newState: boolean) => void;
 }
 
-export function MemeCard({ 
-  meme, 
-  isLiked, 
-  isSaved, 
-  isAuthenticated,
-  onLikeToggle,
-  onSaveToggle
-}: MemeCardProps) {
+// Create global caches outside of component
+// These will be shared across all MemeCard instances
+const globalLikeCache = new Map<string, boolean>();
+const globalSaveCache = new Map<string, boolean>();
+
+// Debounce function at module level
+function debounce(func: Function, wait: number) {
+  let timeout: NodeJS.Timeout;
+  return function(...args: any[]) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+}
+
+export function MemeCard({ meme, ...props }: MemeCardProps) {
+  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const [liked, setLiked] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [likesCount, setLikesCount] = useState(meme.likes || 0);
+  
+  // Use refs to track if we've already checked status to prevent infinite loops
+  const likeChecked = useRef(false);
+  const saveChecked = useRef(false);
+  
+  // Check like status only once when component mounts
+  useEffect(() => {
+    if (isAuthenticated && !likeChecked.current) {
+      likeChecked.current = true;
+      
+      // Check cache first
+      if (globalLikeCache.has(meme.id)) {
+        setLiked(globalLikeCache.get(meme.id) || false);
+        return;
+      }
+      
+      memeService.checkLikeStatus(meme.id)
+        .then(response => {
+          setLiked(response.liked);
+          // Update cache
+          globalLikeCache.set(meme.id, response.liked);
+        })
+        .catch(error => {
+          console.error("Error checking like status:", error);
+        });
+    }
+  }, [isAuthenticated, meme.id]);
+  
+  // Check save status only once when component mounts
+  useEffect(() => {
+    if (isAuthenticated && !saveChecked.current) {
+      saveChecked.current = true;
+      
+      // Check cache first
+      if (globalSaveCache.has(meme.id)) {
+        setSaved(globalSaveCache.get(meme.id) || false);
+        return;
+      }
+      
+      memeService.checkSaveStatus(meme.id)
+        .then(response => {
+          setSaved(response.saved);
+          // Update cache
+          globalSaveCache.set(meme.id, response.saved);
+        })
+        .catch(error => {
+          console.error("Error checking save status:", error);
+        });
+    }
+  }, [isAuthenticated, meme.id]);
+  
   const [isInteracting, setIsInteracting] = useState(false);
   
-  const handleLike = async () => {
+  const handleLike = debounce(async () => {
     if (!isAuthenticated) {
       toast.error("Please log in to like memes");
       return;
     }
     
-    if (isInteracting) return;
-    
-    setIsInteracting(true);
-    
+    setIsLoading(true);
     try {
-      // Call API
-      const result = await memeService.toggleLike(meme.id);
+      const response = await memeService.likeMeme(meme.id);
+      setLiked(response.liked);
+      setLikesCount(response.likes);
       
       // Notify parent component
-      if (onLikeToggle) {
-        onLikeToggle(meme, result.liked);
+      if (props.onLikeToggle) {
+        props.onLikeToggle(meme, response.liked);
       }
-      
     } catch (error) {
-      console.error(`Error toggling like for meme ${meme.id}:`, error);
-      toast.error("Failed to update like status");
+      console.error("Error liking meme:", error);
     } finally {
-      setIsInteracting(false);
+      setIsLoading(false);
     }
-  };
+  }, 300);
   
-  const handleSave = async () => {
+  const handleSave = debounce(async () => {
     if (!isAuthenticated) {
       toast.error("Please log in to save memes");
       return;
     }
     
-    if (isInteracting) return;
-    
-    setIsInteracting(true);
-    
+    setIsLoading(true);
     try {
-      // Call API
-      const result = await memeService.toggleSave(meme.id);
+      const response = await memeService.saveMeme(meme.id);
+      setSaved(response.saved);
       
       // Notify parent component
-      if (onSaveToggle) {
-        onSaveToggle(meme, result.saved);
+      if (props.onSaveToggle) {
+        props.onSaveToggle(meme, response.saved);
       }
       
-      toast.success(result.saved 
+      toast.success(response.saved 
         ? "Meme saved to your collection" 
         : "Meme removed from your collection");
     } catch (error) {
-      console.error(`Error toggling save for meme ${meme.id}:`, error);
-      toast.error("Failed to update save status");
+      console.error("Error saving meme:", error);
     } finally {
-      setIsInteracting(false);
+      setIsLoading(false);
     }
-  };
+  }, 300);
   
   const handleShare = () => {
     navigator.clipboard.writeText(`${window.location.origin}/meme/${meme.id}`);
@@ -143,7 +198,7 @@ export function MemeCard({
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
               <ThumbsUp className="h-4 w-4 fill-primary text-primary" />
-              <span>{meme.likes} likes</span>
+              <span>{likesCount} likes</span>
             </div>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <span>{meme.comments?.length || 0} comments</span>
@@ -156,9 +211,9 @@ export function MemeCard({
               size="sm" 
               className="flex-1"
               onClick={handleLike}
-              disabled={isInteracting}
+              disabled={isLoading}
             >
-              <ThumbsUp className={`mr-2 h-4 w-4 ${isLiked ? "fill-primary text-primary" : ""}`} />
+              <ThumbsUp className={`mr-2 h-4 w-4 ${liked ? "fill-primary text-primary" : ""}`} />
               Like
             </Button>
             
@@ -189,9 +244,9 @@ export function MemeCard({
               size="sm" 
               className="flex-1"
               onClick={handleSave}
-              disabled={isInteracting}
+              disabled={isLoading}
             >
-              <Bookmark className={`mr-2 h-4 w-4 ${isSaved ? "fill-primary text-primary" : ""}`} />
+              <Bookmark className={`mr-2 h-4 w-4 ${saved ? "fill-primary text-primary" : ""}`} />
               Save
             </Button>
           </div>
