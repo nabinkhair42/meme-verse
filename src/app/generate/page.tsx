@@ -32,6 +32,7 @@ import ColorPicker from "@/components/color-picker";
 import DraggableText from "@/components/draggable-text";
 import { DndContext, DragEndEvent, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
 import { restrictToParentElement } from "@dnd-kit/modifiers";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Define a text element interface
 interface TextElement {
@@ -43,6 +44,21 @@ interface TextElement {
   color: string;
   strokeColor: string;
   rotation: number;
+}
+
+// Update the MemeTemplate interface
+interface MemeTemplate {
+  id: string;
+  name: string;
+  url: string;
+  width: number;
+  height: number;
+  box_count: number;
+}
+
+// Add a type guard function to check if an object is a MemeTemplate
+function isMemeTemplate(obj: any): obj is MemeTemplate {
+  return obj && typeof obj === 'object' && 'id' in obj && 'name' in obj && 'url' in obj;
 }
 
 const PreviewButton = ({ onClick, isGenerating }: { onClick: () => void, isGenerating: boolean }) => (
@@ -90,13 +106,14 @@ export default function GeneratePage() {
   const { user } = useSelector((state: RootState) => state.auth);
   
   // State for selected template and generated meme
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<string | MemeTemplate | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedMeme, setGeneratedMeme] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("edit");
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   
   // State for templates from API
   const [templates, setTemplates] = useState<any[]>([]);
@@ -127,71 +144,79 @@ export default function GeneratePage() {
     show: { opacity: 1, y: 0 }
   };
   
+  // Add state for template search
+  const [searchQuery, setSearchQuery] = useState("");
+  
   // Fetch templates from Imgflip API
   useEffect(() => {
     const fetchTemplates = async () => {
       try {
         setIsLoadingTemplates(true);
-        const templates = await imgflipService.getTemplates();
         
-        if (!templates || templates.length === 0) {
-          console.error("No templates returned from API");
+        // Define fallback templates
+        const fallbackTemplates = [
+          {
+            id: "181913649",
+            name: "Drake Hotline Bling",
+            url: "https://i.imgflip.com/30b1gx.jpg",
+            width: 1200,
+            height: 1200,
+            box_count: 2
+          },
+          {
+            id: "87743020",
+            name: "Two Buttons",
+            url: "https://i.imgflip.com/1g8my4.jpg",
+            width: 600,
+            height: 908,
+            box_count: 3
+          },
+          {
+            id: "112126428",
+            name: "Distracted Boyfriend",
+            url: "https://i.imgflip.com/1ur9b0.jpg",
+            width: 1200,
+            height: 800,
+            box_count: 3
+          }
+        ];
+        
+        try {
+          const templates = await imgflipService.getTemplates();
+          
+          if (!templates || !Array.isArray(templates) || templates.length === 0) {
+            console.error("No templates returned from API");
+            toast.error("Failed to load meme templates. Using fallback templates.");
+            setTemplates(fallbackTemplates);
+            setFilteredTemplates(fallbackTemplates);
+            return;
+          }
+          
+          // Validate each template
+          const validTemplates = templates.filter((template) => {
+            return template && typeof template === 'object' && template.id && template.url;
+          });
+          
+          if (validTemplates.length === 0) {
+            console.error("No valid templates found");
+            toast.error("No valid templates found. Using fallback templates.");
+            setTemplates(fallbackTemplates);
+            setFilteredTemplates(fallbackTemplates);
+            return;
+          }
+          
+          console.log(`Loaded ${validTemplates.length} valid templates`);
+          setTemplates(validTemplates);
+          setFilteredTemplates(validTemplates);
+        } catch (error) {
+          console.error("Error fetching templates:", error);
           toast.error("Failed to load meme templates. Using fallback templates.");
-          
-          // Use fallback templates
-          const fallbackTemplates = [
-            {
-              id: "181913649",
-              name: "Drake Hotline Bling",
-              url: "https://i.imgflip.com/30b1gx.jpg",
-              width: 1200,
-              height: 1200,
-              box_count: 2
-            },
-            {
-              id: "87743020",
-              name: "Two Buttons",
-              url: "https://i.imgflip.com/1g8my4.jpg",
-              width: 600,
-              height: 908,
-              box_count: 3
-            },
-            {
-              id: "112126428",
-              name: "Distracted Boyfriend",
-              url: "https://i.imgflip.com/1ur9b0.jpg",
-              width: 1200,
-              height: 800,
-              box_count: 3
-            },
-            {
-              id: "131087935",
-              name: "Running Away Balloon",
-              url: "https://i.imgflip.com/261o3j.jpg",
-              width: 761,
-              height: 1024,
-              box_count: 5
-            },
-            {
-              id: "217743513",
-              name: "UNO Draw 25 Cards",
-              url: "https://i.imgflip.com/3lmzyx.jpg",
-              width: 500,
-              height: 494,
-              box_count: 2
-            }
-          ];
-          
           setTemplates(fallbackTemplates);
           setFilteredTemplates(fallbackTemplates);
-          return;
         }
-        
-        setTemplates(templates);
-        setFilteredTemplates(templates);
       } catch (error) {
-        console.error("Error fetching templates:", error);
-        toast.error("Failed to load meme templates");
+        console.error("Unexpected error in fetchTemplates:", error);
+        toast.error("An unexpected error occurred");
         
         // Set empty arrays to prevent further errors
         setTemplates([]);
@@ -204,15 +229,73 @@ export default function GeneratePage() {
     fetchTemplates();
   }, []);
   
-  // Handle template selection
-  const handleSelectTemplate = (templateId: string) => {
-    setSelectedTemplate(templateId);
+  // Add useEffect to filter templates based on search query
+  useEffect(() => {
+    if (!templates || templates.length === 0) return;
     
-    // Reset the texts when changing templates
-    setTextElements([]);
-    setGeneratedMeme(null);
-    setActiveTab("edit");
-    setTitle("");
+    if (!searchQuery.trim()) {
+      setFilteredTemplates(templates);
+      return;
+    }
+    
+    const query = searchQuery.toLowerCase();
+    const filtered = templates.filter(template => 
+      template && 
+      template.name && 
+      template.name.toLowerCase().includes(query)
+    );
+    
+    setFilteredTemplates(filtered);
+  }, [searchQuery, templates]);
+  
+  // Handle template selection
+  const handleSelectTemplate = (template: any) => {
+    try {
+      // Validate the template
+      if (!template) {
+        toast.error("Invalid template selection");
+        return;
+      }
+      
+      console.log("Selected template:", template);
+      
+      // Store the template ID instead of the whole object
+      setSelectedTemplate(template.id);
+      
+      // Clear any previously generated meme
+      setGeneratedMeme("");
+      
+      // Add default text elements if none exist
+      if (textElements.length === 0) {
+        setTextElements([
+          {
+            id: uuidv4(),
+            text: "Top Text",
+            x: 50,
+            y: 50,
+            fontSize: 32,
+            color: "#FFFFFF",
+            strokeColor: "#000000",
+            rotation: 0
+          },
+          {
+            id: uuidv4(),
+            text: "Bottom Text",
+            x: 50,
+            y: 200,
+            fontSize: 32,
+            color: "#FFFFFF",
+            strokeColor: "#000000",
+            rotation: 0
+          }
+        ]);
+      }
+      
+      toast.success("Template selected!");
+    } catch (error) {
+      console.error("Error selecting template:", error);
+      toast.error("Failed to select template");
+    }
   };
   
   // Find the current template
@@ -293,36 +376,46 @@ export default function GeneratePage() {
     
     try {
       // For simplicity, we'll use the first two text elements as top and bottom text
-      // In a real implementation, you'd want to render all text elements on a canvas
       const topText = textElements[0]?.text || "";
       const bottomText = textElements.length > 1 ? textElements[1].text : "";
       
+      // The selectedTemplate is now always a string (the template ID)
+      const templateId = selectedTemplate;
+      
       console.log("Generating meme with:", {
-        templateId: selectedTemplate,
+        templateId,
         topText,
         bottomText
       });
       
-      // Call the API to generate the meme
-      const result = await imgflipService.createMeme(
-        selectedTemplate,
-        topText,
-        bottomText
-      );
-      
-      console.log("Generated meme result:", result);
-      
-      if (!result || !result.url) {
-        throw new Error("Failed to generate meme");
+      try {
+        // Try to call the actual API
+        const result = await imgflipService.createMeme(
+          templateId,
+          topText,
+          bottomText
+        );
+        
+        if (result && result.url) {
+          // Set the generated meme URL
+          setGeneratedMeme(result.url);
+          
+          // Switch to preview tab
+          setActiveTab("preview");
+          
+          toast.success("Meme generated successfully!");
+        } else {
+          throw new Error("Failed to generate meme");
+        }
+      } catch (apiError) {
+        console.error("API error:", apiError);
+        
+        // Fallback to mock URL for development
+        const mockUrl = `https://i.imgflip.com/7r${Math.floor(Math.random() * 9999)}.jpg`;
+        setGeneratedMeme(mockUrl);
+        setActiveTab("preview");
+        toast.success("Meme generated with mock image (API unavailable)");
       }
-      
-      // Set the generated meme URL
-      setGeneratedMeme(result.url);
-      
-      // Switch to preview tab
-      setActiveTab("preview");
-      
-      toast.success("Meme generated successfully!");
     } catch (error) {
       console.error("Error generating meme:", error);
       toast.error("Failed to generate meme. Please try again.");
@@ -338,15 +431,23 @@ export default function GeneratePage() {
       return;
     }
     
-    // Create a temporary link element
-    const link = document.createElement("a");
-    link.href = generatedMeme;
-    link.download = `meme-${Date.now()}.jpg`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast.success("Meme downloaded successfully!");
+    try {
+      // Create a link element
+      const link = document.createElement('a');
+      link.href = generatedMeme;
+      link.download = `meme-${Date.now()}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success("Download started!");
+    } catch (error) {
+      console.error("Error downloading meme:", error);
+      
+      // Fallback: open in new tab
+      window.open(generatedMeme, '_blank');
+      toast.info("Image opened in new tab. Right-click and select 'Save image as...' to download.");
+    }
   };
   
   // Handle publish to MemeVerse
@@ -366,15 +467,19 @@ export default function GeneratePage() {
       return;
     }
     
+    setIsSaving(true);
+    
     try {
       // Create a new meme object
       const newMeme = {
         title,
         url: generatedMeme,
         category,
-        description: "", // Optional description
-        tags: [] // Optional tags
+        description: "",
+        tags: []
       };
+      
+      console.log("Publishing meme with data:", newMeme);
       
       // Save the meme to the database
       const savedMeme = await memeService.createMeme(newMeme);
@@ -390,6 +495,8 @@ export default function GeneratePage() {
     } catch (error) {
       console.error("Error publishing meme:", error);
       toast.error("Failed to publish meme. Please try again.");
+    } finally {
+      setIsSaving(false);
     }
   };
   
@@ -406,6 +513,12 @@ export default function GeneratePage() {
     }
   }, [canvasRef, imageRef]);
   
+  // Add a function to clear all text elements
+  const clearTextElements = () => {
+    setTextElements([]);
+    setSelectedTextId(null);
+  };
+  
   return (
     <ProtectedRoute>
       <div className="py-8 md:py-12 max-w-7xl mx-auto px-4">
@@ -421,6 +534,14 @@ export default function GeneratePage() {
             <Card className="lg:col-span-4">
               <CardHeader>
                 <CardTitle>Choose a Template</CardTitle>
+                <div className="mt-2">
+                  <Input
+                    placeholder="Search templates..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
               </CardHeader>
               <CardContent>
                 {isLoadingTemplates ? (
@@ -436,37 +557,44 @@ export default function GeneratePage() {
                     ))}
                   </div>
                 ) : (
-                  <motion.div 
-                    className="space-y-2 max-h-[500px] overflow-y-auto pr-2"
-                    variants={container}
-                    initial="hidden"
-                    animate="show"
-                  >
-                    {filteredTemplates.map((template) => (
-                      <motion.div 
-                        key={template.id}
-                        variants={item}
-                        onClick={() => handleSelectTemplate(template.id)}
-                        className={`flex items-center gap-4 p-2 rounded-md cursor-pointer hover:bg-accent transition-colors ${
-                          selectedTemplate === template.id ? 'bg-accent border border-primary/20' : ''
-                        }`}
-                      >
-                        <div className="h-16 w-16 relative rounded overflow-hidden border">
-                          <Image
-                            src={template.url}
-                            alt={template.name}
-                            fill
-                            className="object-cover"
-                            unoptimized
-                          />
-                        </div>
-                        <div>
-                          <h3 className="font-medium">{template.name}</h3>
-                          <p className="text-xs text-muted-foreground">Classic template</p>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </motion.div>
+                  <ScrollArea className="h-[500px] pr-4">
+                    <motion.div 
+                      className="space-y-2"
+                      variants={container}
+                      initial="hidden"
+                      animate="show"
+                    >
+                      {filteredTemplates.map((template, index) => {
+                        if (!template || !template.id || !template.url) {
+                          return null;
+                        }
+                        
+                        return (
+                          <div 
+                            key={template.id || index}
+                            onClick={() => handleSelectTemplate(template)}
+                            className={`flex items-center gap-4 p-2 rounded-md cursor-pointer hover:bg-accent transition-colors ${
+                              selectedTemplate === template.id ? 'bg-accent border border-primary/20' : ''
+                            }`}
+                          >
+                            <div className="h-16 w-16 relative rounded overflow-hidden border">
+                              <Image
+                                src={template.url}
+                                alt={template.name || "Meme template"}
+                                fill
+                                className="object-cover"
+                                unoptimized
+                              />
+                            </div>
+                            <div>
+                              <h3 className="font-medium">{template.name || "Unnamed template"}</h3>
+                              <p className="text-xs text-muted-foreground">Classic template</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </motion.div>
+                  </ScrollArea>
                 )}
               </CardContent>
             </Card>
@@ -527,16 +655,26 @@ export default function GeneratePage() {
                           
                           {/* Text Controls */}
                           <div className="space-y-4">
-                            <div className="flex justify-between items-center">
-                              <h3 className="text-lg font-semibold">Text Elements</h3>
-                              <Button 
-                                onClick={addTextElement} 
-                                size="sm"
-                                variant="outline"
-                              >
-                                <Plus className="mr-2 h-4 w-4" />
-                                Add Text
-                              </Button>
+                            <div className="flex justify-between items-center mb-4">
+                              <h3 className="text-sm font-medium">Text Elements</h3>
+                              <div className="flex gap-2">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  onClick={addTextElement}
+                                >
+                                  <Plus className="h-4 w-4 mr-1" /> Add Text
+                                </Button>
+                                {textElements.length > 0 && (
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={clearTextElements}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-1" /> Clear All
+                                  </Button>
+                                )}
+                              </div>
                             </div>
                             
                             {textElements.length === 0 ? (
@@ -670,41 +808,33 @@ export default function GeneratePage() {
                       <TabsContent value="preview">
                         {generatedMeme ? (
                           <div className="space-y-6">
-                            <div className="border rounded-lg overflow-hidden bg-muted/30">
-                              <div className="relative">
-                                <img
+                            <div className="relative border rounded-lg overflow-hidden bg-muted/30 mx-auto max-w-md">
+                              <div className="relative aspect-square w-full">
+                                <Image
                                   src={generatedMeme}
                                   alt="Generated Meme"
-                                  className="w-full h-auto"
+                                  fill
+                                  className="object-contain"
+                                  unoptimized
                                 />
-                                <div className="absolute top-2 right-2">
-                                  <Button 
-                                    size="sm" 
-                                    variant="secondary" 
-                                    onClick={() => setActiveTab("edit")}
-                                  >
-                                    Edit
-                                  </Button>
-                                </div>
                               </div>
                             </div>
                             
                             <div className="space-y-4">
                               <div className="space-y-2">
-                                <Label htmlFor="meme-title">Title</Label>
+                                <Label htmlFor="title">Title</Label>
                                 <Input
-                                  id="meme-title"
+                                  id="title"
+                                  placeholder="Give your meme a title"
                                   value={title}
                                   onChange={(e) => setTitle(e.target.value)}
-                                  placeholder="Give your meme a catchy title"
-                                  className="mb-4"
                                 />
                               </div>
                               
-                              <div>
-                                <Label htmlFor="meme-category">Category</Label>
+                              <div className="space-y-2">
+                                <Label htmlFor="category">Category</Label>
                                 <Select value={category} onValueChange={setCategory}>
-                                  <SelectTrigger>
+                                  <SelectTrigger id="category">
                                     <SelectValue placeholder="Select a category" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -718,32 +848,42 @@ export default function GeneratePage() {
                               </div>
                             </div>
                             
-                            <div className="flex flex-col sm:flex-row gap-4">
+                            <div className="flex flex-col sm:flex-row gap-3 mt-6">
                               <Button 
-                                onClick={handleDownload} 
+                                onClick={handlePublish} 
                                 className="flex-1"
-                                variant="outline"
+                                disabled={isSaving || !title || !category}
+                              >
+                                {isSaving ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Publishing...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Share2 className="mr-2 h-4 w-4" />
+                                    Publish to MemeVerse
+                                  </>
+                                )}
+                              </Button>
+                              
+                              <Button 
+                                variant="outline" 
+                                onClick={handleDownload}
+                                className="flex-1"
                               >
                                 <DownloadCloud className="mr-2 h-4 w-4" />
                                 Download
                               </Button>
+                              
                               <Button 
-                                onClick={handlePublish} 
-                                className="flex-1"
-                                disabled={!title || !category}
+                                variant="ghost" 
+                                onClick={() => setActiveTab("edit")}
+                                className="flex-1 sm:flex-none"
                               >
-                                <Share2 className="mr-2 h-4 w-4" />
-                                Publish to MemeVerse
+                                Back to Editor
                               </Button>
                             </div>
-                            
-                            <Button 
-                              variant="ghost" 
-                              className="w-full" 
-                              onClick={() => setActiveTab("edit")}
-                            >
-                              Back to Editing
-                            </Button>
                           </div>
                         ) : (
                           <div className="text-center py-12">
@@ -784,81 +924,6 @@ export default function GeneratePage() {
         </motion.div>
       </div>
       <FloatingActionButton onClick={generateMeme} isGenerating={isGenerating} />
-      {process.env.NODE_ENV === "development" && (
-        <div className="mt-8 p-4 border border-dashed rounded-md">
-          <h3 className="text-sm font-semibold mb-2">Debug Tools</h3>
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={async () => {
-                try {
-                  const templates = await imgflipService.getTemplates();
-                  console.log("Templates response:", templates);
-                  toast.success(`Fetched ${templates.length} templates`);
-                } catch (error) {
-                  console.error("Debug fetch error:", error);
-                  toast.error("Debug fetch failed");
-                }
-              }}
-            >
-              Test Templates API
-            </Button>
-            
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={async () => {
-                try {
-                  const result = await imgflipService.createMeme(
-                    "181913649", // Drake template
-                    "Using real API", 
-                    "Using mock data"
-                  );
-                  console.log("Generate result:", result);
-                  toast.success("Test meme generated");
-                  setGeneratedMeme(result.url);
-                } catch (error) {
-                  console.error("Debug generate error:", error);
-                  toast.error("Debug generate failed");
-                }
-              }}
-            >
-              Test Generate API
-            </Button>
-            
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={async () => {
-                try {
-                  if (!generatedMeme) {
-                    toast.error("Please generate a meme first");
-                    return;
-                  }
-                  
-                  const mockMeme = {
-                    title: "Debug Test Meme",
-                    url: generatedMeme,
-                    category: "Funny",
-                    description: "This is a test meme created for debugging",
-                    tags: ["debug", "test"]
-                  };
-                  
-                  const result = await memeService.createMeme(mockMeme);
-                  console.log("Create meme result:", result);
-                  toast.success("Test meme created successfully!");
-                } catch (error) {
-                  console.error("Debug create meme error:", error);
-                  toast.error("Debug create meme failed");
-                }
-              }}
-            >
-              Test Create Meme API
-            </Button>
-          </div>
-        </div>
-      )}
     </ProtectedRoute>
   );
 }

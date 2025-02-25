@@ -19,8 +19,8 @@ export async function GET(
     const client = await clientPromise;
     const db = client.db("meme-verse");
     
-    // Ensure params.id is properly awaited by using it in a variable first
-    const memeId = params.id;
+    // Get the ID from params
+    const memeId = String(params.id);
     
     // Check if user saved this meme
     const userSave = await db.collection("saves").findOne({
@@ -30,7 +30,7 @@ export async function GET(
     
     return NextResponse.json({ saved: !!userSave });
   } catch (error) {
-    console.error(`Error checking save status for meme ${params.id}:`, error);
+    console.error(`Error checking save status for meme:`, error);
     return NextResponse.json(
       { error: "Failed to check save status" },
       { status: 500 }
@@ -55,8 +55,8 @@ export async function POST(
     const client = await clientPromise;
     const db = client.db("meme-verse");
     
-    // Ensure params.id is properly awaited by using it in a variable first
-    const memeId = params.id;
+    // Get the ID from params
+    const memeId = String(params.id);
     
     // Check if user already saved this meme
     const userSave = await db.collection("saves").findOne({
@@ -85,7 +85,7 @@ export async function POST(
     
     return NextResponse.json({ saved });
   } catch (error) {
-    console.error(`Error toggling save for meme ${params.id}:`, error);
+    console.error(`Error toggling save:`, error);
     return NextResponse.json(
       { error: "Failed to toggle save" },
       { status: 500 }

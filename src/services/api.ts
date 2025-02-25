@@ -16,7 +16,7 @@ export interface Meme {
   likes: number;
   comments: Comment[];
   tags?: string[];
-  category?: string;
+  category: string;
 }
 
 export interface Comment {
@@ -155,46 +155,130 @@ export const imgflipService = {
   getTemplates: async (): Promise<any[]> => {
     try {
       console.log("Fetching templates from API...");
-      const response = await api.get('/api/templates');
       
-      if (!response.data || !response.data.templates) {
-        console.error("Invalid response format:", response.data);
-        return [];
+      // Define fallback templates
+      const fallbackTemplates = [
+        {
+          id: "181913649",
+          name: "Drake Hotline Bling",
+          url: "https://i.imgflip.com/30b1gx.jpg",
+          width: 1200,
+          height: 1200,
+          box_count: 2
+        },
+        {
+          id: "87743020",
+          name: "Two Buttons",
+          url: "https://i.imgflip.com/1g8my4.jpg",
+          width: 600,
+          height: 908,
+          box_count: 3
+        },
+        {
+          id: "112126428",
+          name: "Distracted Boyfriend",
+          url: "https://i.imgflip.com/1ur9b0.jpg",
+          width: 1200,
+          height: 800,
+          box_count: 3
+        }
+      ];
+      
+      try {
+        const response = await api.get('/api/templates');
+        
+        if (!response.data || !response.data.templates || !Array.isArray(response.data.templates)) {
+          console.error("Invalid response format:", response.data);
+          return fallbackTemplates;
+        }
+        
+        // Validate templates
+        const templates = response.data.templates;
+        const validTemplates = templates.filter((template: any) => {
+          return template && typeof template === 'object' && template.id && template.url;
+        });
+        
+        if (validTemplates.length === 0) {
+          console.error("No valid templates in response");
+          return fallbackTemplates;
+        }
+        
+        console.log(`Successfully fetched ${validTemplates.length} templates`);
+        return validTemplates;
+      } catch (error) {
+        console.error("Error in API call:", error);
+        return fallbackTemplates;
       }
-      
-      console.log(`Successfully fetched ${response.data.templates.length} templates`);
-      return response.data.templates || [];
     } catch (error) {
       console.error("Error fetching meme templates:", error);
       
-      // Return empty array instead of throwing to prevent app crashes
-      return [];
+      // Return fallback templates instead of throwing
+      return [
+        {
+          id: "181913649",
+          name: "Drake Hotline Bling",
+          url: "https://i.imgflip.com/30b1gx.jpg",
+          width: 1200,
+          height: 1200,
+          box_count: 2
+        },
+        {
+          id: "87743020",
+          name: "Two Buttons",
+          url: "https://i.imgflip.com/1g8my4.jpg",
+          width: 600,
+          height: 908,
+          box_count: 3
+        },
+        {
+          id: "112126428",
+          name: "Distracted Boyfriend",
+          url: "https://i.imgflip.com/1ur9b0.jpg",
+          width: 1200,
+          height: 800,
+          box_count: 3
+        }
+      ];
     }
   },
 
   // Create a meme with the Imgflip API
-  createMeme: async (templateId: string, topText: string, bottomText: string): Promise<{ url: string }> => {
+  createMeme: async (templateId: string | any, topText: string, bottomText: string): Promise<{ url: string }> => {
     try {
-      console.log(`Generating meme with template ${templateId}...`);
+      // Validate inputs
+      if (!templateId) {
+        console.error("Invalid template ID:", templateId);
+        throw new Error("Invalid template ID");
+      }
+      
+      // Ensure templateId is a string
+      const id = typeof templateId === 'object' && templateId?.id 
+        ? templateId.id 
+        : String(templateId);
+      
+      console.log(`Generating meme with template ${id}...`);
+      
+      // Call the API
       const response = await api.post('/api/generate', { 
-        templateId, 
-        topText, 
-        bottomText 
+        templateId: id, 
+        topText: topText || "", 
+        bottomText: bottomText || "" 
       });
       
+      // Check the response
       if (!response.data || !response.data.url) {
         console.error("Invalid response format:", response.data);
         throw new Error("Invalid response from server");
       }
       
-      console.log("Meme generated successfully");
+      console.log("Meme generated successfully:", response.data.url);
       return response.data;
     } catch (error) {
       console.error("Error creating meme:", error);
       
       // In development, return a mock URL to allow testing
       if (process.env.NODE_ENV === "development") {
-        console.log("Using fallback mock URL for development");
+        console.log("Using fallback mock URL for development due to error");
         return { 
           url: `https://i.imgflip.com/7r${Math.floor(Math.random() * 9999)}.jpg` 
         };
@@ -322,7 +406,14 @@ export const memeService = {
   }): Promise<Meme> => {
     try {
       console.log("Creating meme with data:", memeData);
-      const response = await api.post('/api/memes', memeData);
+      
+      // Ensure category is always a string
+      const memeWithCategory = {
+        ...memeData,
+        category: memeData.category || "Other" // Default to "Other" if category is undefined
+      };
+      
+      const response = await api.post('/api/memes', memeWithCategory);
       
       if (!response.data || !response.data.id) {
         console.error("Invalid response from create meme API:", response.data);
@@ -342,7 +433,7 @@ export const memeService = {
           title: memeData.title,
           url: memeData.url,
           description: memeData.description || "",
-          category: memeData.category || "Other",
+          category: memeData.category || "Other", // Ensure category is a string
           tags: memeData.tags || [],
           author: "You",
           authorId: "your-id",

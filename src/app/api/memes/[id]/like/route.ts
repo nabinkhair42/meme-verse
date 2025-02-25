@@ -19,15 +19,18 @@ export async function GET(
     const client = await clientPromise;
     const db = client.db("meme-verse");
     
+    // Get the ID from params
+    const memeId = String(params.id);
+    
     // Check if user liked this meme
     const userLike = await db.collection("likes").findOne({
-      memeId: params.id,
+      memeId,
       userId: user.id
     });
     
     return NextResponse.json({ liked: !!userLike });
   } catch (error) {
-    console.error(`Error checking like status for meme ${params.id}:`, error);
+    console.error(`Error checking like status:`, error);
     return NextResponse.json(
       { error: "Failed to check like status" },
       { status: 500 }
@@ -52,14 +55,11 @@ export async function POST(
     const client = await clientPromise;
     const db = client.db("meme-verse");
     
-    // Check if user already liked this meme
-    const userLike = await db.collection("likes").findOne({
-      memeId: params.id,
-      userId: user.id
-    });
+    // Get the ID from params
+    const memeId = String(params.id);
     
     // Get the meme
-    const meme = await db.collection("memes").findOne({ id: params.id });
+    const meme = await db.collection("memes").findOne({ id: memeId });
     
     if (!meme) {
       return NextResponse.json(
@@ -68,13 +68,19 @@ export async function POST(
       );
     }
     
+    // Check if user already liked this meme
+    const userLike = await db.collection("likes").findOne({
+      memeId,
+      userId: user.id
+    });
+    
     let liked = false;
     let likes = meme.likes || 0;
     
     if (userLike) {
       // User already liked this meme, so unlike it
       await db.collection("likes").deleteOne({
-        memeId: params.id,
+        memeId,
         userId: user.id
       });
       
@@ -83,13 +89,13 @@ export async function POST(
       
       // Update meme likes count
       await db.collection("memes").updateOne(
-        { id: params.id },
+        { id: memeId },
         { $set: { likes } }
       );
     } else {
       // User hasn't liked this meme yet, so like it
       await db.collection("likes").insertOne({
-        memeId: params.id,
+        memeId,
         userId: user.id,
         createdAt: new Date().toISOString()
       });
@@ -99,7 +105,7 @@ export async function POST(
       
       // Update meme likes count
       await db.collection("memes").updateOne(
-        { id: params.id },
+        { id: memeId },
         { $set: { likes } }
       );
       
@@ -108,7 +114,7 @@ export async function POST(
     
     return NextResponse.json({ liked, likes });
   } catch (error) {
-    console.error(`Error toggling like for meme ${params.id}:`, error);
+    console.error(`Error toggling like:`, error);
     return NextResponse.json(
       { error: "Failed to toggle like" },
       { status: 500 }
