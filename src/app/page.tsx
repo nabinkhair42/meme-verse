@@ -5,6 +5,7 @@ import { RootState } from "@/redux/store";
 import { LeftSidebar } from "@/components/home/left-sidebar";
 import { RightSidebar } from "@/components/home/right-sidebar";
 import { MemeFeed } from "@/components/home/meme-feed";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function Home() {
   const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
@@ -19,7 +20,9 @@ export default function Home() {
         
         {/* Main Content */}
         <div className="lg:col-span-6">
-          <MemeFeed />
+          <ScrollArea className="h-screen pr-4">
+            <MemeFeed />
+          </ScrollArea>
         </div>
         
         {/* Right Sidebar */}

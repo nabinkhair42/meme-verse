@@ -15,12 +15,23 @@ export async function GET(request: NextRequest) {
       );
     }
     
+    const { searchParams } = new URL(request.url);
+    const onlyGenerated = searchParams.get("generated") === "true";
+    
     const client = await clientPromise;
     const db = client.db("meme-verse");
     
+    // Build query
+    const query: any = { authorId: user.id };
+    
+    // Filter by isGenerated flag if requested
+    if (onlyGenerated) {
+      query.isGenerated = true;
+    }
+    
     // Get user-generated memes
     const memes = await db.collection("user-generated-memes")
-      .find({ authorId: user.id })
+      .find(query)
       .sort({ createdAt: -1 })
       .toArray();
     
@@ -45,7 +56,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const { title, url, category, description, tags } = await request.json();
+    const { title, url, category, description, tags, isGenerated, templateId } = await request.json();
     
     if (!title || !url) {
       return NextResponse.json(
@@ -69,7 +80,9 @@ export async function POST(request: NextRequest) {
       authorId: user.id,
       createdAt: new Date().toISOString(),
       likes: 0,
-      comments: []
+      comments: [],
+      isGenerated: !!isGenerated, // Ensure boolean
+      templateId: templateId || null
     };
     
     // Insert into both collections

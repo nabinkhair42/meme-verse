@@ -26,7 +26,7 @@ export default function NotFound() {
         
         <h1 className="text-4xl font-bold mb-4">404 - Page Not Found</h1>
         <p className="text-muted-foreground mb-8">
-          The meme you're looking for seems to have disappeared into the vast internet void. Maybe it was too dank?
+          The meme you&apos;re looking for seems to have disappeared into the vast internet void. Maybe it was too dank?
         </p>
         
         <div className="flex flex-wrap justify-center gap-4">
@@ -39,7 +39,7 @@ export default function NotFound() {
         </div>
         
         <p className="mt-8 text-sm text-muted-foreground">
-          Pro tip: If you're trying to reach a specific meme, check the URL and try again.
+          Pro tip: If you&apos;re trying to reach a specific meme, check the URL and try again.
         </p>
       </motion.div>
     </div>

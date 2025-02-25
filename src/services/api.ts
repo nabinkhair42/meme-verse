@@ -62,6 +62,18 @@ export interface MemeTemplate {
   box_count?: number;
 }
 
+// Add TextElement interface
+export interface TextElement {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  color: string;
+  strokeColor: string;
+  rotation: number;
+}
+
 // Create an axios instance with interceptors
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "",
@@ -252,7 +264,12 @@ export const imgflipService = {
   },
 
   // Create a meme with the Imgflip API
-  createMeme: async (templateId: string | MemeTemplate, topText: string, bottomText: string): Promise<{ url: string }> => {
+  createMeme: async (
+    templateId: string | MemeTemplate, 
+    topText: string, 
+    bottomText: string,
+    textElements?: TextElement[]
+  ): Promise<{ url: string }> => {
     try {
       // Validate inputs
       if (!templateId) {
@@ -271,7 +288,8 @@ export const imgflipService = {
       const response = await api.post('/api/generate', { 
         templateId: finalTemplateId, 
         topText: topText || "", 
-        bottomText: bottomText || "" 
+        bottomText: bottomText || "",
+        textElements // Pass text elements if available
       });
       
       // Check the response
@@ -578,17 +596,20 @@ export const memeService = {
     }
   },
 
-  // Add functions for user-generated memes to memeService
-  getUserGeneratedMemes: async (): Promise<Meme[]> => {
+  // Get user-generated memes
+  getUserGeneratedMemes: async (onlyGenerated = true): Promise<Meme[]> => {
     try {
-      const response = await api.get('/api/memes/user-generated');
+      const url = onlyGenerated 
+        ? '/api/memes/user-generated?generated=true'
+        : '/api/memes/user-generated';
+        
+      const response = await api.get(url);
       return response.data;
     } catch (error) {
       console.error("Error fetching user-generated memes:", error);
       return [];
     }
   },
-
   createUserGeneratedMeme: async (memeData: {
     title: string;
     url: string;

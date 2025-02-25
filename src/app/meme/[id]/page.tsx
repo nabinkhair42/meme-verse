@@ -271,7 +271,7 @@ export default function MemePage() {
           <div className="text-center py-12 bg-muted/30 rounded-lg">
             <h2 className="text-2xl font-bold mb-4">Meme Not Found</h2>
             <p className="text-muted-foreground mb-6">
-              The meme you're looking for doesn't exist or has been removed.
+              The meme you&apos;re looking for doesn&apos;t exist or has been removed.
             </p>
             <Button asChild>
               <Link href="/explore">Browse Memes</Link>

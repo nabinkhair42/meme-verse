@@ -50,6 +50,7 @@ export const fetchUserProfile = createAsyncThunk(
       return response;
     } catch (err) {
       return rejectWithValue('Failed to fetch user profile');
+      console.log(err);
     }
   }
 );

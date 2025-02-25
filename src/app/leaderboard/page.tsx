@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "@/redux/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,10 +52,35 @@ export default function LeaderboardPage() {
     }
   };
   
-  useEffect(() => {
-    fetchLeaderboardData();
+  const fetchLeaderboardDataCallback = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Fetch top memes
+      const memesData = await leaderboardService.getTopMemes(period);
+      setTopMemes(memesData);
+      
+      // Fetch top users
+      const usersData = await leaderboardService.getTopUsers(period);
+      setTopUsers(usersData);
+    } catch (error) {
+      console.error("Error fetching leaderboard data:", error);
+      setError("Failed to load leaderboard data");
+      
+      // Fallback to local data if API fails
+      const sortedMemes = [...items].sort((a, b) => b.likes - a.likes).slice(0, 10);
+      setTopMemes(sortedMemes);
+    } finally {
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 500);
+    }
   }, [period, items]);
   
+  useEffect(() => {
+    fetchLeaderboardDataCallback();
+  }, [fetchLeaderboardDataCallback]);
   // Animation variants
   const container = {
     hidden: { opacity: 0 },

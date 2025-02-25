@@ -138,6 +138,9 @@ export default function GeneratePage() {
   // Add state for template search
   const [searchQuery, setSearchQuery] = useState("");
   
+  // Add this state to track image loading
+  const [isImageLoaded, setIsImageLoaded] = useState(false);
+  
   // Fetch templates from Imgflip API
   useEffect(() => {
     const fetchTemplates = async () => {
@@ -240,7 +243,7 @@ export default function GeneratePage() {
   }, [searchQuery, templates]);
   
   // Handle template selection
-  const handleSelectTemplate = (template: any) => {
+  const handleSelectTemplate = (template: MemeTemplate) => {
     try {
       // Validate the template
       if (!template) {
@@ -250,31 +253,29 @@ export default function GeneratePage() {
       
       console.log("Selected template:", template);
       
-      // Store the template ID instead of the whole object
-      setSelectedTemplate(template.id);
+      // Set the selected template
+      setSelectedTemplate(template);
       
-      // Clear any previously generated meme
-      setGeneratedMeme("");
-      
-      // Add default text elements if none exist
+      // Reset text elements when changing templates
       if (textElements.length === 0) {
+        // Add default text elements based on template
         setTextElements([
           {
             id: uuidv4(),
-            text: "Top Text",
-            x: 50,
+            text: "TOP TEXT",
+            x: 250,
             y: 50,
-            fontSize: 32,
+            fontSize: 36,
             color: "#FFFFFF",
             strokeColor: "#000000",
             rotation: 0
           },
           {
             id: uuidv4(),
-            text: "Bottom Text",
-            x: 50,
-            y: 200,
-            fontSize: 32,
+            text: "BOTTOM TEXT",
+            x: 250,
+            y: 450,
+            fontSize: 36,
             color: "#FFFFFF",
             strokeColor: "#000000",
             rotation: 0
@@ -328,18 +329,20 @@ export default function GeneratePage() {
   // Handle text drag
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, delta } = event;
+    const id = active.id as string;
     
-    if (active) {
-      const id = active.id as string;
-      const element = textElements.find(el => el.id === id);
-      
-      if (element) {
-        updateTextElement(id, { 
-          x: element.x + delta.x, 
-          y: element.y + delta.y 
-        });
-      }
-    }
+    // Update the position of the dragged element
+    setTextElements(prev => 
+      prev.map(el => 
+        el.id === id 
+          ? { 
+              ...el, 
+              x: Math.max(0, Math.min(500, el.x + delta.x)), 
+              y: Math.max(0, Math.min(500, el.y + delta.y)) 
+            } 
+          : el
+      )
+    );
   };
   
   // Add this for better drag behavior
@@ -366,9 +369,12 @@ export default function GeneratePage() {
     setIsGenerating(true);
     
     try {
-      // For simplicity, we'll use the first two text elements as top and bottom text
-      const topText = textElements[0]?.text || "";
-      const bottomText = textElements.length > 1 ? textElements[1].text : "";
+      // Sort text elements by vertical position (top to bottom)
+      const sortedTextElements = [...textElements].sort((a, b) => a.y - b.y);
+      
+      // Get the top and bottom text (or use empty strings if not available)
+      const topText = sortedTextElements[0]?.text || "";
+      const bottomText = sortedTextElements.length > 1 ? sortedTextElements[1].text : "";
       
       // Get the template ID regardless of whether selectedTemplate is a string or object
       let finalTemplateId: string;
@@ -385,15 +391,79 @@ export default function GeneratePage() {
       console.log("Generating meme with:", {
         templateId: finalTemplateId,
         topText,
-        bottomText
+        bottomText,
+        textElements: sortedTextElements
       });
       
       try {
-        // Call the API to generate the meme
+        // First, try to render the meme locally using canvas
+        if (canvasRef.current && imageRef.current && imageRef.current.complete) {
+          try {
+            const canvas = canvasRef.current;
+            const ctx = canvas.getContext('2d');
+            
+            if (ctx) {
+              // Clear canvas
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              
+              // Draw the template image
+              ctx.drawImage(imageRef.current, 0, 0, canvas.width, canvas.height);
+              
+              // Draw each text element
+              sortedTextElements.forEach(element => {
+                ctx.save();
+                
+                // Set text properties
+                ctx.font = `${element.fontSize}px Impact, sans-serif`;
+                ctx.fillStyle = element.color;
+                ctx.strokeStyle = element.strokeColor;
+                ctx.lineWidth = 2;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                // Apply rotation if needed
+                if (element.rotation !== 0) {
+                  ctx.translate(element.x, element.y);
+                  ctx.rotate(element.rotation * Math.PI / 180);
+                  ctx.translate(-element.x, -element.y);
+                }
+                
+                // Draw text with stroke for better visibility
+                const text = element.text;
+                
+                // Add stroke (outline)
+                ctx.strokeText(text, element.x, element.y);
+                
+                // Add fill
+                ctx.fillText(text, element.x, element.y);
+                
+                ctx.restore();
+              });
+              
+              // Get the canvas data URL
+              const localMemeUrl = canvas.toDataURL('image/jpeg', 0.95);
+              
+              // Use the local rendering
+              setGeneratedMeme(localMemeUrl);
+              setActiveTab("preview");
+              toast.success("Meme generated successfully!");
+              
+              // Return early - we've successfully rendered locally
+              setIsGenerating(false);
+              return;
+            }
+          } catch (canvasError) {
+            console.error("Canvas rendering failed, falling back to API:", canvasError);
+            // Continue to API fallback
+          }
+        }
+        
+        // Fallback to API if local rendering fails
         const result = await imgflipService.createMeme(
           finalTemplateId,
           topText,
-          bottomText
+          bottomText,
+          sortedTextElements
         );
         
         console.log("API response:", result);
@@ -415,11 +485,53 @@ export default function GeneratePage() {
       } catch (apiError) {
         console.error("API error:", apiError);
         
-        // Use a reliable fallback image
+        // Try one more time with a simpler approach
+        try {
+          // Create a simple canvas rendering as fallback
+          if (canvasRef.current && imageRef.current && imageRef.current.complete) {
+            const canvas = canvasRef.current;
+            const ctx = canvas.getContext('2d');
+            
+            if (ctx) {
+              // Clear canvas
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              
+              // Draw the template image
+              ctx.drawImage(imageRef.current, 0, 0, canvas.width, canvas.height);
+              
+              // Draw simple top and bottom text
+              ctx.font = '32px Impact';
+              ctx.fillStyle = '#FFFFFF';
+              ctx.strokeStyle = '#000000';
+              ctx.lineWidth = 2;
+              ctx.textAlign = 'center';
+              
+              // Top text
+              ctx.strokeText(topText, canvas.width / 2, 50);
+              ctx.fillText(topText, canvas.width / 2, 50);
+              
+              // Bottom text
+              ctx.strokeText(bottomText, canvas.width / 2, canvas.height - 30);
+              ctx.fillText(bottomText, canvas.width / 2, canvas.height - 30);
+              
+              // Get the canvas data URL
+              const fallbackMemeUrl = canvas.toDataURL('image/jpeg', 0.9);
+              
+              setGeneratedMeme(fallbackMemeUrl);
+              setActiveTab("preview");
+              toast.success("Meme generated with fallback method");
+              return;
+            }
+          }
+        } catch (fallbackError) {
+          console.error("Fallback rendering failed:", fallbackError);
+        }
+        
+        // Use a reliable fallback image as last resort
         const fallbackUrl = "https://i.imgflip.com/30b1gx.jpg"; // Drake meme
         setGeneratedMeme(fallbackUrl);
         setActiveTab("preview");
-        toast.warning("Using fallback image due to API error");
+        toast.warning("Using fallback image due to generation errors");
       }
     } catch (error) {
       console.error("Error generating meme:", error);
@@ -482,7 +594,7 @@ export default function GeneratePage() {
       let imageData = generatedMeme;
       
       // If the image is a URL, we need to fetch it and convert to base64
-      if (generatedMeme.startsWith('http')) {
+      if (generatedMeme.startsWith('http') && !generatedMeme.startsWith('data:')) {
         try {
           const imgbbResponse = await memeService.uploadToImgBB(generatedMeme);
           
@@ -505,7 +617,10 @@ export default function GeneratePage() {
         url: imageData,
         category,
         description: "",
-        tags: []
+        tags: [],
+        isGenerated: true, // Flag to identify this as a generated meme
+        templateId: typeof selectedTemplate === 'string' ? selectedTemplate : 
+                   (selectedTemplate && 'id' in selectedTemplate ? selectedTemplate.id : null)
       };
       
       console.log("Publishing meme with data:", newMeme);
@@ -536,17 +651,67 @@ export default function GeneratePage() {
   
   // Modify the canvas operations to be client-side only
   useEffect(() => {
-    // This ensures canvas operations only happen on the client
-    if (typeof window !== 'undefined' && canvasRef.current && imageRef.current) {
-      // Canvas setup code can go here if needed
+    if (typeof window === 'undefined') return;
+    
+    // When template changes, update the image source
+    if (imageRef.current && selectedTemplate) {
+      setIsImageLoaded(false);
+      
+      if (typeof selectedTemplate === 'object' && selectedTemplate.url) {
+        imageRef.current.src = selectedTemplate.url;
+      } else if (typeof selectedTemplate === 'string') {
+        // Find the template by ID
+        const template = templates.find(t => t.id === selectedTemplate);
+        if (template && template.url) {
+          imageRef.current.src = template.url;
+        }
+      }
     }
-  }, [canvasRef, imageRef]);
+    
+    // Set up canvas dimensions
+    if (canvasRef.current && selectedTemplate) {
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      
+      // Set canvas dimensions based on the template or a default size
+      let templateWidth = 500;
+      let templateHeight = 500;
+      
+      if (typeof selectedTemplate === 'object' && selectedTemplate.width && selectedTemplate.height) {
+        templateWidth = selectedTemplate.width;
+        templateHeight = selectedTemplate.height;
+      }
+      
+      // Set canvas size
+      canvas.width = templateWidth;
+      canvas.height = templateHeight;
+      
+      // Clear canvas
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+  }, [selectedTemplate, templates]);
   
   // Add a function to clear all text elements
   const clearTextElements = () => {
     setTextElements([]);
     setSelectedTextId(null);
   };
+  
+  // Hidden elements for canvas rendering
+  const hiddenElements = (
+    <div className="hidden">
+      <canvas ref={canvasRef} width={500} height={500} />
+      <Image
+        ref={imageRef}
+        src={typeof selectedTemplate === 'object' && selectedTemplate?.url ? selectedTemplate.url : ''}
+        alt="Template"
+        onLoad={() => setIsImageLoaded(true)}
+        crossOrigin="anonymous"
+      />
+    </div>
+  );
   
   return (
     <ProtectedRoute>
@@ -653,33 +818,47 @@ export default function GeneratePage() {
                       <TabsContent value="edit">
                         <div className="space-y-6">
                           {/* Template Preview with Draggable Text */}
-                          <div className="relative border rounded-lg overflow-hidden bg-muted/30">
-                            <DndContext 
-                              sensors={sensors}
-                              onDragEnd={handleDragEnd}
-                              modifiers={[restrictToParentElement]}
-                            >
-                              <div className="relative w-full h-full">
-                                <img
-                                  ref={imageRef}
-                                  src={currentTemplate.url}
-                                  alt={currentTemplate.name}
-                                  className="w-full h-auto"
-                                  style={{ maxHeight: '400px', objectFit: 'contain' }}
-                                />
-                                
-                                {textElements.map((element) => (
-                                  <DraggableText
-                                    key={element.id}
-                                    element={element}
-                                    isSelected={selectedTextId === element.id}
-                                    onSelect={() => setSelectedTextId(element.id)}
-                                    onDrag={(id, position) => updateTextElement(id, position)}
-                                    onTextChange={(id, text) => updateTextElement(id, { text })}
-                                  />
-                                ))}
-                              </div>
-                            </DndContext>
+                          <div className="relative border rounded-lg overflow-hidden bg-muted/30 mb-6">
+                            <div className="relative aspect-square w-full">
+                              {selectedTemplate ? (
+                                <>
+                                  {typeof selectedTemplate === 'object' && selectedTemplate.url ? (
+                                    <Image
+                                      src={selectedTemplate.url}
+                                      alt="Template"
+                                      fill
+                                      className="object-contain"
+                                      unoptimized
+                                    />
+                                  ) : (
+                                    <div className="flex items-center justify-center h-full">
+                                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                    </div>
+                                  )}
+                                  
+                                  <DndContext
+                                    sensors={sensors}
+                                    onDragEnd={handleDragEnd}
+                                    modifiers={[restrictToParentElement]}
+                                  >
+                                    {textElements.map((element) => (
+                                      <DraggableText
+                                        key={element.id}
+                                        element={element}
+                                        isSelected={selectedTextId === element.id}
+                                        onSelect={() => setSelectedTextId(element.id)}
+                                        onDrag={(id, delta) => updateTextElement(id, { x: delta.x, y: delta.y })}
+                                        onTextChange={(id, text) => updateTextElement(id, { text })}
+                                      />
+                                    ))}
+                                  </DndContext>
+                                </>
+                              ) : (
+                                <div className="flex items-center justify-center h-full">
+                                  <p className="text-muted-foreground">Select a template to start</p>
+                                </div>
+                              )}
+                            </div>
                           </div>
                           
                           {/* Text Controls */}
@@ -708,122 +887,101 @@ export default function GeneratePage() {
                             
                             {textElements.length === 0 ? (
                               <div className="text-center py-6 bg-muted/30 rounded-lg">
-                                <p className="text-muted-foreground">
-                                  Add text elements to your meme and drag them to position.
-                                </p>
+                                <p className="text-muted-foreground">No text elements added yet</p>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  onClick={addTextElement}
+                                  className="mt-2"
+                                >
+                                  <Plus className="h-4 w-4 mr-1" /> Add Text
+                                </Button>
                               </div>
                             ) : (
-                              <div className="space-y-4">
-                                {/* Text Element List */}
-                                <div className="space-y-2">
-                                  {textElements.map((element) => (
-                                    <div 
-                                      key={element.id}
-                                      className={`flex items-center justify-between p-2 rounded-md border ${
-                                        selectedTextId === element.id ? 'border-primary' : 'border-border'
-                                      }`}
-                                      onClick={() => setSelectedTextId(element.id)}
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <Move className="h-4 w-4 text-muted-foreground" />
-                                        <span className="truncate max-w-[200px]">
-                                          {element.text || "Text Element"}
-                                        </span>
+                              <div className="space-y-3">
+                                {textElements.map((element) => (
+                                  <div 
+                                    key={element.id}
+                                    className={`p-3 border rounded-md cursor-pointer ${
+                                      selectedTextId === element.id ? 'border-primary bg-primary/5' : ''
+                                    }`}
+                                    onClick={() => setSelectedTextId(element.id)}
+                                  >
+                                    <div className="flex justify-between items-center mb-2">
+                                      <div className="font-medium truncate" style={{ color: element.color }}>
+                                        {element.text || "Text Element"}
                                       </div>
-                                      <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          removeTextElement(element.id);
-                                        }}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  ))}
-                                </div>
-                                
-                                {/* Selected Text Element Controls */}
-                                {selectedText && (
-                                  <div className="space-y-4 p-4 border rounded-md">
-                                    <div className="space-y-2">
-                                      <Label htmlFor="text-content">Text Content</Label>
-                                      <Input
-                                        id="text-content"
-                                        value={selectedText.text}
-                                        onChange={(e) => updateTextElement(selectedText.id, { text: e.target.value })}
-                                        placeholder="Enter your text"
-                                      />
-                                    </div>
-                                    
-                                    <div className="space-y-2">
-                                      <Label>Font Size: {selectedText.fontSize}px</Label>
-                                      <Slider
-                                        value={[selectedText.fontSize]}
-                                        min={12}
-                                        max={72}
-                                        step={1}
-                                        onValueChange={(value) => updateTextElement(selectedText.id, { fontSize: value[0] })}
-                                      />
-                                    </div>
-                                    
-                                    <div className="space-y-2">
-                                      <Label>Rotation: {selectedText.rotation}°</Label>
-                                      <Slider
-                                        value={[selectedText.rotation]}
-                                        min={-180}
-                                        max={180}
-                                        step={5}
-                                        onValueChange={(value) => updateTextElement(selectedText.id, { rotation: value[0] })}
-                                      />
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-2 gap-4">
-                                      <div className="space-y-2">
-                                        <Label>Text Color</Label>
-                                        <Popover>
-                                          <PopoverTrigger asChild>
-                                            <Button 
-                                              variant="outline" 
-                                              className="w-full justify-start"
-                                            >
-                                              <div className="w-4 h-4 mr-2 rounded-full" style={{ backgroundColor: selectedText.color }} />
-                                              {selectedText.color}
-                                            </Button>
-                                          </PopoverTrigger>
-                                          <PopoverContent className="w-auto p-0" align="start">
-                                            <ColorPicker 
-                                              color={selectedText.color}
-                                              onChange={(color) => updateTextElement(selectedText.id, { color })}
-                                            />
-                                          </PopoverContent>
-                                        </Popover>
-                                      </div>
-                                      
-                                      <div className="space-y-2">
-                                        <Label>Stroke Color</Label>
-                                        <Popover>
-                                          <PopoverTrigger asChild>
-                                            <Button 
-                                              variant="outline" 
-                                              className="w-full justify-start"
-                                            >
-                                              <div className="w-4 h-4 mr-2 rounded-full" style={{ backgroundColor: selectedText.strokeColor }} />
-                                              {selectedText.strokeColor}
-                                            </Button>
-                                          </PopoverTrigger>
-                                          <PopoverContent className="w-auto p-0" align="start">
-                                            <ColorPicker 
-                                              color={selectedText.strokeColor}
-                                              onChange={(color) => updateTextElement(selectedText.id, { strokeColor: color })}
-                                            />
-                                          </PopoverContent>
-                                        </Popover>
+                                      <div className="flex gap-1">
+                                        <Button 
+                                          variant="ghost" 
+                                          size="icon" 
+                                          className="h-7 w-7"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            removeTextElement(element.id);
+                                          }}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                        <Button 
+                                          variant="ghost" 
+                                          size="icon" 
+                                          className="h-7 w-7 cursor-move"
+                                        >
+                                          <Move className="h-4 w-4" />
+                                        </Button>
                                       </div>
                                     </div>
+                                    
+                                    <Input
+                                      value={element.text}
+                                      onChange={(e) => updateTextElement(element.id, { text: e.target.value })}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="mb-2"
+                                      placeholder="Enter text"
+                                    />
+                                    
+                                    {selectedTextId === element.id && (
+                                      <div className="space-y-3 mt-3 pt-3 border-t">
+                                        <div className="space-y-2">
+                                          <Label className="text-xs">Font Size</Label>
+                                          <Slider
+                                            value={[element.fontSize]}
+                                            min={12}
+                                            max={72}
+                                            step={1}
+                                            onValueChange={(value) => updateTextElement(element.id, { fontSize: value[0] })}
+                                          />
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <ColorPicker
+                                            color={element.color}
+                                            onChange={(color) => updateTextElement(element.id, { color })}
+                                            label="Text Color"
+                                          />
+                                          
+                                          <ColorPicker
+                                            color={element.strokeColor}
+                                            onChange={(color) => updateTextElement(element.id, { strokeColor: color })}
+                                            label="Outline Color"
+                                          />
+                                        </div>
+                                        
+                                        <div className="space-y-2">
+                                          <Label className="text-xs">Rotation</Label>
+                                          <Slider
+                                            value={[element.rotation]}
+                                            min={-180}
+                                            max={180}
+                                            step={5}
+                                            onValueChange={(value) => updateTextElement(element.id, { rotation: value[0] })}
+                                          />
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
-                                )}
+                                ))}
                               </div>
                             )}
                           </div>
@@ -973,6 +1131,7 @@ export default function GeneratePage() {
         </motion.div>
       </div>
       <FloatingActionButton onClick={generateMeme} isGenerating={isGenerating} />
+      {hiddenElements}
     </ProtectedRoute>
   );
 }

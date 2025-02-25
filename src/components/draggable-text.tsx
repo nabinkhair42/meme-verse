@@ -60,6 +60,12 @@ export default function DraggableText({
           border: isSelected ? '1px dashed #3b82f6' : 'none',
           borderRadius: '4px',
           backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+          fontFamily: 'Impact, sans-serif',
+          textAlign: 'center',
+          width: 'auto',
+          minWidth: '100px',
+          maxWidth: '400px',
+          textShadow: `2px 2px 0 ${element.strokeColor}, -2px -2px 0 ${element.strokeColor}, 2px -2px 0 ${element.strokeColor}, -2px 2px 0 ${element.strokeColor}`,
         }}
         className="animate-pulse"
       >
@@ -86,6 +92,13 @@ export default function DraggableText({
     backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
     boxShadow: isSelected ? '0 0 0 4px rgba(59, 130, 246, 0.2)' : 'none',
     transition: 'box-shadow 0.2s, border 0.2s, background-color 0.2s',
+    fontFamily: 'Impact, sans-serif',
+    textAlign: 'center',
+    width: 'auto',
+    minWidth: '100px',
+    maxWidth: '400px',
+    textShadow: `2px 2px 0 ${element.strokeColor}, -2px -2px 0 ${element.strokeColor}, 2px -2px 0 ${element.strokeColor}, -2px 2px 0 ${element.strokeColor}`,
+    zIndex: isSelected ? 10 : 1,
   } as React.CSSProperties;
   
   return (
@@ -106,8 +119,11 @@ export default function DraggableText({
             fontSize: 'inherit',
             color: 'inherit',
             WebkitTextStroke: 'inherit',
-            width: `${element.text.length + 2}ch`,
+            width: `${Math.max(element.text.length + 2, 10)}ch`,
             minWidth: '100px',
+            textShadow: 'inherit',
+            fontFamily: 'inherit',
+            textAlign: 'center',
           }}
         />
       ) : (

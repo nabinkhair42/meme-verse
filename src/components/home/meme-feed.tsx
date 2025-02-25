@@ -15,6 +15,15 @@ import { useSelector } from "react-redux";
 import { RootState } from "@/redux/store";
 import { Meme } from "@/redux/features/memes/memesSlice";
 
+// Define the PaginatedResponse interface if it doesn't exist
+interface PaginatedResponse<T> {
+  data: T[];  // Change this to match your actual API response structure
+  pagination: {
+    page: number;
+    totalPages: number;
+  };
+}
+
 export function MemeFeed() {
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
   
@@ -66,7 +75,7 @@ export function MemeFeed() {
     const checkInteractionStatus = async () => {
       if (!isAuthenticated || !data) return;
       
-      const allMemes = data.pages.flatMap(page => page.memes);
+      const allMemes = data.pages.flatMap(page => (page as any).memes);
       
       for (const meme of allMemes) {
         try {
@@ -100,7 +109,7 @@ export function MemeFeed() {
   };
   
   // Flatten all memes from all pages
-  const allMemes = data?.pages.flatMap(page => page.memes) || [];
+  const allMemes = data?.pages.flatMap(page => (page as any).memes) || [];
   
   // Animation variants
   const container = {
@@ -198,7 +207,7 @@ export function MemeFeed() {
                 )}
                 
                 {!hasNextPage && allMemes.length > 0 && (
-                  <p className="text-muted-foreground">You've reached the end!</p>
+                  <p className="text-muted-foreground">You&apos;ve reached the end!</p>
                 )}
               </div>
             </motion.div>

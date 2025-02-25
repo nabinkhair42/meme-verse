@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Get request body
-    const { templateId, topText, bottomText } = await request.json();
+    const { templateId, topText, bottomText, textElements } = await request.json();
     
     if (!templateId) {
       return NextResponse.json(
@@ -28,7 +28,12 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    console.log("Generating meme with:", { templateId, topText, bottomText });
+    console.log("Generating meme with:", { 
+      templateId, 
+      topText, 
+      bottomText,
+      textElements: textElements ? 'provided' : 'not provided'
+    });
     
     // For development/testing, return a reliable fallback URL
     if (process.env.NODE_ENV === "development") {
@@ -43,6 +48,9 @@ export async function POST(request: NextRequest) {
       const fallbackUrl = fallbackUrls[templateId] || fallbackUrls.default;
       console.log("Using fallback URL for development:", fallbackUrl);
       
+      // Simulate a delay to mimic API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       return NextResponse.json({ url: fallbackUrl });
     }
     
@@ -51,8 +59,29 @@ export async function POST(request: NextRequest) {
     formData.append("template_id", templateId);
     formData.append("username", IMGFLIP_USERNAME);
     formData.append("password", IMGFLIP_PASSWORD);
+    
+    // Add text boxes
     formData.append("text0", topText || "");
     formData.append("text1", bottomText || "");
+    
+    // If we have text elements with positions, use them for box positioning
+    if (textElements && Array.isArray(textElements)) {
+      textElements.forEach((element, index) => {
+        if (index < 2) { // Imgflip API supports only 2 text boxes for most templates
+          // Convert relative positions to percentages
+          const x = Math.round(element.x);
+          const y = Math.round(element.y);
+          
+          formData.append(`boxes[${index}][text]`, element.text);
+          formData.append(`boxes[${index}][x]`, x.toString());
+          formData.append(`boxes[${index}][y]`, y.toString());
+          formData.append(`boxes[${index}][width]`, "200");
+          formData.append(`boxes[${index}][height]`, "100");
+          formData.append(`boxes[${index}][color]`, element.color || "#FFFFFF");
+          formData.append(`boxes[${index}][outline_color]`, element.strokeColor || "#000000");
+        }
+      });
+    }
     
     // Call Imgflip API to generate meme
     const response = await axios.post(

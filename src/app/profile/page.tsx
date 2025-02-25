@@ -100,6 +100,7 @@ export default function ProfilePage() {
     const fetchCreatedMemes = async () => {
       try {
         setIsLoadingCreatedMemes(true);
+        // Get only generated memes
         const memes = await userService.getUserMemes(user?.id || '');
         setCreatedMemes(memes);
       } catch (error) {
@@ -314,7 +315,7 @@ export default function ProfilePage() {
                   <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                   <h3 className="text-lg font-semibold mb-2">No uploaded memes</h3>
                   <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                    You haven't uploaded any memes yet. Create or upload your first meme to get started!
+                    You haven&apos;t uploaded any memes yet. Create or upload your first meme to get started!
                   </p>
                   <div className="flex flex-wrap justify-center gap-4">
                     <Button asChild>
@@ -386,7 +387,7 @@ export default function ProfilePage() {
                   <ImageIcon className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                   <h3 className="text-lg font-semibold mb-2">No created memes yet</h3>
                   <p className="text-muted-foreground mb-6">
-                    You haven't created any memes yet. Start creating!
+                    You haven&apos;t created any memes yet. Start creating!
                   </p>
                   <Button asChild>
                     <Link href="/generate">Create a Meme</Link>
@@ -453,7 +454,7 @@ export default function ProfilePage() {
                   <Bookmark className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                   <h3 className="text-lg font-semibold mb-2">No saved memes</h3>
                   <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                    You haven't saved any memes for later. Use the bookmark icon to save memes you want to reference later.
+                    You haven&apos;t saved any memes for later. Use the bookmark icon to save memes you want to reference later.
                   </p>
                   <Button asChild>
                     <Link href="/explore">Explore Memes</Link>

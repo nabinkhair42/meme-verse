@@ -82,7 +82,7 @@ export default function LoginPage() {
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="name@example.com"
+                  placeholder="pointer@gmail.com"
                   value={formData.email}
                   onChange={handleChange}
                   required
@@ -124,7 +124,7 @@ export default function LoginPage() {
           </CardContent>
           <CardFooter className="flex justify-center">
             <p className="text-sm text-muted-foreground">
-              Don't have an account?{" "}
+              Don&apos;t have an account?{" "}
               <Link href="/register" className="text-primary hover:underline">
                 Sign up
               </Link>

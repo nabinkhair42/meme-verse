@@ -67,7 +67,7 @@ export default function TrendingPage() {
     const checkInteractionStatus = async () => {
       if (!isAuthenticated || !data) return;
       
-      const allMemes = data.pages.flatMap(page => page.memes);
+      const allMemes = data.pages.flatMap(page => (page as any).memes);
       
       for (const meme of allMemes) {
         try {
@@ -101,7 +101,7 @@ export default function TrendingPage() {
   };
   
   // Flatten all memes from all pages
-  const allMemes = data?.pages.flatMap(page => page.memes) || [];
+  const allMemes = data?.pages.flatMap(page => (page as any).memes) || [];
   
   // Animation variants
   const container = {
@@ -254,7 +254,7 @@ export default function TrendingPage() {
           )}
           
           {!hasNextPage && allMemes.length > 0 && (
-            <p className="text-muted-foreground">You've reached the end!</p>
+            <p className="text-muted-foreground">You&apos;ve reached the end!</p>
           )}
         </div>
       </>

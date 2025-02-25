@@ -7,7 +7,6 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, Search as SearchIcon, Filter, TrendingUp, Clock, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -98,7 +97,7 @@ export default function SearchPage() {
     const checkInteractionStatus = async () => {
       if (!isAuthenticated || !data) return;
       
-      const allMemes = data.pages.flatMap(page => page.memes);
+      const allMemes = data.pages.flatMap(page => (page as any).memes);
       
       for (const meme of allMemes) {
         try {
@@ -146,7 +145,7 @@ export default function SearchPage() {
   };
   
   // Flatten all memes from all pages
-  const allMemes = data?.pages.flatMap(page => page.memes) || [];
+  const allMemes = data?.pages.flatMap(page => (page as any).memes) || [];
   
   // Animation variants
   const container = {
@@ -411,7 +410,7 @@ export default function SearchPage() {
               )}
               
               {!hasNextPage && allMemes.length > 0 && (
-                <p className="text-muted-foreground">You've reached the end!</p>
+                <p className="text-muted-foreground">You&apos;ve reached the end!</p>
               )}
             </div>
           </>
