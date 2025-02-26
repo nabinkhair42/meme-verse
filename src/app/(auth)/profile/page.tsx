@@ -1,116 +1,230 @@
 "use client";
-import { useState, useEffect } from "react";
+
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar, Edit, Heart, ImageIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import ProfileEditForm from "./_components/profile-edit-form";
+import ProfileMemeGrid from "./_components/profile-meme-grid";
+import ProfileStats from "./_components/profile-stats";
 import { useSelector } from "react-redux";
 import { RootState } from "@/redux/store";
-import { motion } from "framer-motion";
-import { userService } from "@/services/api";
-import { ProtectedRoute } from "@/components/auth/protected-route";
-import { ProfileHeader } from "@/app/(auth)/profile/_components/profile-header";
-import { ProfileTabs } from "@/app/(auth)/profile/_components/profile-tabs";
-import { Meme } from "@/redux/features/memes/memesSlice";
+
+interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  username: string;
+  bio: string;
+  avatar: string;
+  createdAt: string;
+  stats: {
+    memes: number;
+    likes: number;
+  };
+}
 
 export default function ProfilePage() {
-  const { items } = useSelector((state: RootState) => state.memes);
-  const { user } = useSelector((state: RootState) => state.auth);
-  
+  const router = useRouter();
+  const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [uploadedMemes, setUploadedMemes] = useState<Meme[]>([]);
-  const [likedMemes, setLikedMemes] = useState<Meme[]>([]);
-  const [savedMemes, setSavedMemes] = useState<Meme[]>([]);
-  const [profileData, setProfileData] = useState({
-    username: '',
-    bio: '',
-    avatar: ''
-  });
+  const [isEditing, setIsEditing] = useState(false);
+  const [activeTab, setActiveTab] = useState("uploaded");
   
-  // Add state and data fetching for created memes
-  const [createdMemes, setCreatedMemes] = useState<Meme[]>([]);
-  const [isLoadingCreatedMemes, setIsLoadingCreatedMemes] = useState(true);
-  
+  // Fetch user profile
   useEffect(() => {
-    const fetchUserData = async () => {
-      setIsLoading(true);
+    const fetchProfile = async () => {
+      if (!isAuthenticated) {
+        router.push("/login");
+        return;
+      }
+      
       try {
-        // Fetch the user's memes and saved memes
-        if (user?.id) {
-          const [userMemes, savedMemes] = await Promise.all([
-            userService.getUserMemes(user.id),
-            userService.getSavedMemes(user.id)
-          ]);
-          
-          setUploadedMemes(userMemes);
-          setSavedMemes(savedMemes);
-          
-          // Set profile data from user
-          setProfileData({
-            username: user.username || '',
-            bio: user.bio || '',
-            avatar: user.avatar || ''
-          });
+        setIsLoading(true);
+        const response = await fetch("/api/auth/me");
+        
+        if (!response.ok) {
+          throw new Error("Failed to fetch profile");
         }
+        
+        const data = await response.json();
+        setProfile(data);
       } catch (error) {
-        console.error("Error fetching user data:", error);
-        // Fallback to Redux store
-        const userUploadedMemes = items.filter(meme => 
-          meme.authorId === user?.id || meme.author === user?.username
-        );
-        setUploadedMemes(userUploadedMemes);
+        console.error("Error fetching profile:", error);
+        toast.error("Failed to load profile");
       } finally {
         setIsLoading(false);
       }
     };
     
-    fetchUserData();
-  }, [user, items]);
+    fetchProfile();
+  }, [isAuthenticated, router]);
   
-  // Fetch created memes
-  useEffect(() => {
-    const fetchCreatedMemes = async () => {
-      try {
-        setIsLoadingCreatedMemes(true);
-        // Get only generated memes
-        const memes = await userService.getUserMemes(user?.id || '');
-        setCreatedMemes(memes);
-      } catch (error) {
-        console.error("Error fetching created memes:", error);
-      } finally {
-        setIsLoadingCreatedMemes(false);
+  // Handle profile update
+  const handleProfileUpdate = async (updatedProfile: Partial<UserProfile>) => {
+    try {
+      const response = await fetch("/api/auth/me", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updatedProfile),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update profile");
       }
-    };
-    
-    if (user) {
-      fetchCreatedMemes();
+      
+      const data = await response.json();
+      setProfile(prev => prev ? { ...prev, ...data } : data);
+      setIsEditing(false);
+      toast.success("Profile updated successfully");
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      toast.error((error as Error).message || "Failed to update profile");
     }
-  }, [user]);
+  };
   
-  const memesCount = uploadedMemes.length;
-  const likesCount = uploadedMemes.reduce((sum, meme: any) => sum + (meme.likes || 0), 0);
-  const commentsCount = uploadedMemes.reduce((sum, meme: any) => sum + (meme.comments?.length || 0), 0);
+  if (isLoading) {
+    return (
+      <div className="flex w-full justify-center py-8 ">
+        <div className="max-w-7xl mx-auto">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex flex-col md:flex-row gap-6">
+                <Skeleton className="h-24 w-24 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-8 w-1/3" />
+                  <Skeleton className="h-4 w-1/4" />
+                  <Skeleton className="h-20 w-full" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[...Array(6)].map((_, i) => (
+              <Skeleton key={i} className="aspect-square rounded-md" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!isAuthenticated) {
+    router.push("/login");
+    return null;
+  }
+  
+  if (!profile) {
+    return (
+      <div className="flex w-full py-8 text-center">
+        <h1 className="text-2xl font-bold mb-4">Profile not found</h1>
+        <p className="text-muted-foreground mb-4">We couldn't find your profile information.</p>
+        <Button onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    );
+  }
+  
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
   
   return (
-    <ProtectedRoute>
-      <div className="py-8 md:py-12 max-w-7xl mx-auto px-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <ProfileHeader 
-            userId={user?.id || ''}
-            profileData={profileData}
-            isLoading={isLoading}
-            stats={{ memesCount, likesCount, commentsCount }}
-          />
-          
-          <ProfileTabs 
-            uploadedMemes={uploadedMemes}
-            savedMemes={savedMemes}
-            createdMemes={createdMemes}
-            isLoading={isLoading}
-            isLoadingCreatedMemes={isLoadingCreatedMemes}
-          />
-        </motion.div>
+    <div className="flex w-full py-8">
+      <div className="max-w-7xl mx-auto">
+        <Card className="mb-8">
+          <CardContent className="p-6">
+            {isEditing ? (
+              <ProfileEditForm 
+                profile={profile} 
+                onSave={handleProfileUpdate} 
+                onCancel={() => setIsEditing(false)} 
+              />
+            ) : (
+              <div className="flex flex-col md:flex-row gap-6">
+                <div className="flex flex-col items-center">
+                  <Avatar className="h-24 w-24">
+                    <AvatarImage src={profile.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.username}`} />
+                    <AvatarFallback>{profile.username?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
+                  </Avatar>
+                  
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-4"
+                    onClick={() => setIsEditing(true)}
+                  >
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit Profile
+                  </Button>
+                </div>
+                
+                <div className="flex-1">
+                  <div className="mb-4">
+                    <h1 className="text-2xl font-bold">{profile.name}</h1>
+                    <p className="text-muted-foreground">@{profile.username}</p>
+                  </div>
+                  
+                  <p className="mb-4">{profile.bio || "No bio provided."}</p>
+                  
+                  <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center">
+                      <Calendar className="h-4 w-4 mr-1" />
+                      Joined {formatDate(profile.createdAt)}
+                    </div>
+                    <div className="flex items-center">
+                      <ImageIcon className="h-4 w-4 mr-1" />
+                      {profile.stats.memes} memes
+                    </div>
+                    <div className="flex items-center">
+                      <Heart className="h-4 w-4 mr-1" />
+                      {profile.stats.likes} likes received
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        
+        <ProfileStats userId={profile.id} />
+        
+        <div className="mt-8">
+          <Tabs defaultValue="uploaded" value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="mb-4">
+              <TabsTrigger value="uploaded">Uploaded Memes</TabsTrigger>
+              <TabsTrigger value="generated">Generated Memes</TabsTrigger>
+              <TabsTrigger value="saved">Saved Memes</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="uploaded">
+              <ProfileMemeGrid userId={profile.id} type="uploaded" />
+            </TabsContent>
+            
+            <TabsContent value="generated">
+              <ProfileMemeGrid userId={profile.id} type="generated" />
+            </TabsContent>
+            
+            <TabsContent value="saved">
+              <ProfileMemeGrid userId={profile.id} type="saved" />
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
-    </ProtectedRoute>
+    </div>
   );
 } 

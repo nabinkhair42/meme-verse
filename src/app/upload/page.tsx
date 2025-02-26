@@ -1,15 +1,13 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import { AppDispatch, RootState } from "@/redux/store";
-import { addMeme } from "@/redux/features/memes/memesSlice";
-import { addUploadedMeme } from "@/redux/features/user/userSlice";
-import { useDropzone } from "react-dropzone";
+import { ProtectedRoute } from "@/components/auth/protected-route";
+import { LeftSidebar } from "@/components/home/left-sidebar";
+import { RightSidebar } from "@/components/home/right-sidebar";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -17,18 +15,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent } from "@/components/ui/card";
-import Image from "next/image";
-import { toast } from "sonner";
-import { useRouter } from "next/navigation";
-import { UploadCloud, Image as ImageIcon, X, FileWarning } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { addMeme } from "@/redux/features/memes/memesSlice";
+import { addUploadedMeme } from "@/redux/features/user/userSlice";
+import { AppDispatch, RootState } from "@/redux/store";
+import { imgbbService } from "@/services/api";
 import { motion } from "framer-motion";
-import { v4 as uuidv4 } from "uuid";
-import { imgbbService, memeService } from "@/services/api";
-import { ProtectedRoute } from "@/components/auth/protected-route";
-import { LeftSidebar } from "@/components/home/left-sidebar";
-import { RightSidebar } from "@/components/home/right-sidebar";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Image as ImageIcon, UploadCloud, X } from "lucide-react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useCallback, useRef, useState } from "react";
+import { useDropzone } from "react-dropzone";
+import { useDispatch, useSelector } from "react-redux";
+import { toast } from "sonner";
 
 const categories = [
   { value: "Trending", label: "Trending" },
