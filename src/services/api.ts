@@ -1,6 +1,8 @@
 import { ApiResponse } from "@/lib/apiResponse";
 import axios from "axios";
 import { toast } from "sonner";
+import { GenerateMemeInput, GenerateMemeResponse } from "@/types/meme";
+import type { MemeTemplate } from "@/types/meme";
 
 const IMGBB_API_KEY = process.env.NEXT_PUBLIC_IMGBB_API_KEY;
 
@@ -52,16 +54,6 @@ export interface PaginatedResponse<T> {
     limit: number;
     totalPages: number;
   };
-}
-
-// Define the MemeTemplate interface
-export interface MemeTemplate {
-  id: string;
-  name: string;
-  url: string;
-  width?: number;
-  height?: number;
-  box_count?: number;
 }
 
 // Add TextElement interface
@@ -392,56 +384,24 @@ export const imgbbService = {
 
 // Internal API services for our MongoDB backend
 export const memeService = {
-  // Get memes with filters
-  getMemes: async (options: { 
-    sort?: string; 
-    category?: string; 
-    search?: string; 
-    period?: string;
-    page?: number; 
-    limit?: number 
-  }): Promise<PaginatedResponse<Meme>> => {
+  // Get memes with pagination and filters
+  getMemes: async ({ page = 1, limit = 10, category = "", sort = "latest" } = {}): Promise<PaginatedResponse<Meme>> => {
     try {
-      const { sort = 'newest', category, search, period, page = 1, limit = 10 } = options;
-      
-      const params = new URLSearchParams();
-      if (sort) params.append('sort', sort);
-      if (category) params.append('category', category);
-      if (search) params.append('search', search);
-      if (period) params.append('period', period);
-      if (page) params.append('page', page.toString());
-      if (limit) params.append('limit', limit.toString());
-      
-      const response = await api.get(`/api/memes?${params.toString()}`);
-      
-      // Map the API response to the expected format
-      const apiResponse = response.data;
-      
-      // Check if the response has the expected structure
-      if (apiResponse && apiResponse.success && apiResponse.data) {
-        // Map the memes to the expected format
-        const mappedMemes = apiResponse.data.memes.map((meme: any) => ({
-          id: meme._id || meme.id, // Use _id as id if available
-          title: meme.title,
-          description: meme.description || '',
-          url: meme.imageUrl || meme.url, // Use imageUrl as url if available
-          category: meme.category || 'Other',
-          author: meme.username || meme.author || 'Unknown',
-          authorId: meme.userId || meme.authorId || '',
-          createdAt: meme.createdAt,
-          likes: meme.likes || 0,
-          comments: meme.comments || [],
-          tags: meme.tags || []
-        }));
-        
-        return {
-          data: mappedMemes,
-          pagination: apiResponse.data.pagination
-        };
+      // Use the new feed API
+      const response = await api.get(`/api/feed`, {
+        params: {
+          page,
+          limit,
+          category,
+          sort
+        }
+      });
+
+      if (!response.data.success) {
+        throw new Error(response.data.error || "Failed to fetch memes");
       }
-      
-      // Fallback to the original response if it doesn't match the expected structure
-      return response.data;
+
+      return response.data.data;
     } catch (error) {
       console.error("Error fetching memes:", error);
       throw error;
@@ -720,22 +680,28 @@ export const memeService = {
     try {
       console.log("Uploading image to ImgBB:", imageUrl);
       
-      // If we're in development mode, just return the original URL
+      // If we're in development mode and no API key, return the original URL
       if (process.env.NODE_ENV === "development" && !IMGBB_API_KEY) {
         console.log("Development mode: skipping actual upload to ImgBB");
         return { url: imageUrl };
       }
+
+      if (!IMGBB_API_KEY) {
+        throw new Error("ImgBB API key is not configured");
+      }
       
       // Create form data for ImgBB API
       const formData = new FormData();
-      formData.append("key", IMGBB_API_KEY || "");
+      formData.append("key", IMGBB_API_KEY);
       
       // If the image is a URL, we need to use the URL parameter
       if (imageUrl.startsWith('http')) {
         formData.append("image", imageUrl);
       } else {
         // If it's base64, we need to use the image parameter
-        formData.append("image", imageUrl.split(',')[1]);
+        // Remove the data:image/[type];base64, prefix if present
+        const base64Data = imageUrl.includes('base64') ? imageUrl.split(',')[1] : imageUrl;
+        formData.append("image", base64Data);
       }
       
       // Call ImgBB API to upload image
@@ -744,16 +710,32 @@ export const memeService = {
         formData
       );
       
-      if (!response.data.success) {
-        console.error("ImgBB API error:", response.data);
-        throw new Error("Failed to upload image to ImgBB");
+      // Validate the response
+      if (!response.data || !response.data.success || !response.data.data?.url) {
+        console.error("Invalid ImgBB API response:", response.data);
+        throw new Error("Failed to upload image to ImgBB: Invalid response");
       }
       
-      console.log("Image uploaded successfully:", response.data.data.url);
-      return { url: response.data.data.url };
-    } catch (error) {
-      console.error("Error uploading to ImgBB:", error);
-      throw error;
+      const uploadedUrl = response.data.data.url;
+      
+      // Validate the returned URL
+      if (!uploadedUrl.startsWith('http')) {
+        throw new Error("Invalid URL received from ImgBB");
+      }
+      
+      console.log("Image uploaded successfully to ImgBB:", uploadedUrl);
+      return { url: uploadedUrl };
+    } catch (error: any) {
+      console.error("Error uploading to ImgBB:", error?.response?.data || error);
+      
+      // If we're in development mode, fallback to the original URL
+      if (process.env.NODE_ENV === "development") {
+        console.log("Development mode: falling back to original URL");
+        return { url: imageUrl };
+      }
+      
+      // In production, rethrow the error
+      throw new Error(error?.response?.data?.error?.message || error?.message || "Failed to upload image to ImgBB");
     }
   },
 
@@ -843,7 +825,6 @@ export const memeService = {
       console.log("Falling back to regular API for trending memes");
       return this.getMemes({
         sort: 'likes',
-        period: period === 'all' ? undefined : period,
         page,
         limit
       });
@@ -908,7 +889,6 @@ export const memeService = {
       // Fall back to the regular API
       console.log("Falling back to regular API for search");
       return this.getMemes({
-        search: options?.search,
         category: options?.category,
         sort: options?.sort,
         page: options?.page,
@@ -1233,4 +1213,157 @@ const throttleRequest = (key: string, timeMs: number = 5000): boolean => {
   
   requestThrottles.set(key, now);
   return true;
+};
+
+/**
+ * Meme Generation Service
+ */
+export const memeGenerationService = {
+  /**
+   * Get available meme templates
+   */
+  async getTemplates(): Promise<MemeTemplate[]> {
+    try {
+      const response = await fetch("https://api.imgflip.com/get_memes");
+      const data = await response.json();
+      
+      if (!data.success || !data.data || !data.data.memes) {
+        throw new Error("Failed to fetch meme templates");
+      }
+      
+      // Validate and filter out templates without valid URLs
+      const validTemplates = data.data.memes.filter((template: MemeTemplate) => 
+        template && 
+        template.url && 
+        template.url.startsWith('http') &&
+        template.id &&
+        template.name
+      );
+      
+      if (validTemplates.length === 0) {
+        throw new Error("No valid templates found");
+      }
+      
+      return validTemplates;
+    } catch (error) {
+      console.error("Error fetching templates:", error);
+      // Return fallback templates instead of throwing
+      return [
+        {
+          id: "181913649",
+          name: "Drake Hotline Bling",
+          url: "https://i.imgflip.com/30b1gx.jpg",
+          width: 1200,
+          height: 1200,
+          box_count: 2
+        },
+        {
+          id: "87743020",
+          name: "Two Buttons",
+          url: "https://i.imgflip.com/1g8my4.jpg",
+          width: 600,
+          height: 908,
+          box_count: 3
+        },
+        {
+          id: "112126428",
+          name: "Distracted Boyfriend",
+          url: "https://i.imgflip.com/1ur9b0.jpg",
+          width: 1200,
+          height: 800,
+          box_count: 3
+        }
+      ];
+    }
+  },
+  
+  /**
+   * Generate a meme using a template
+   */
+  async generateMeme(input: GenerateMemeInput): Promise<GenerateMemeResponse> {
+    try {
+      if (!input.templateId) {
+        throw new Error("Template ID is required");
+      }
+      
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(input),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to generate meme");
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success || !data.data?.url) {
+        throw new Error(data.message || "Failed to generate meme");
+      }
+      
+      // Validate URL
+      if (!data.data.url.startsWith('http')) {
+        throw new Error("Invalid image URL received");
+      }
+      
+      return {
+        url: data.data.url,
+        templateId: data.data.templateId,
+        textElements: data.data.textElements
+      };
+    } catch (error) {
+      console.error("Error generating meme:", error);
+      throw error;
+    }
+  },
+  
+  /**
+   * Save a generated meme
+   */
+  async saveMeme(meme: GenerateMemeResponse, title: string, category?: string): Promise<void> {
+    try {
+      if (!meme.url || !meme.url.startsWith('http')) {
+        throw new Error("Invalid meme URL");
+      }
+      
+      if (!title) {
+        throw new Error("Title is required");
+      }
+      
+      const response = await fetch("/api/memes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title,
+          imageUrl: meme.url,
+          type: "generated",
+          templateId: meme.templateId,
+          category: category || "Generated",
+          textElements: meme.textElements
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to save meme");
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.message || "Failed to save meme");
+      }
+      
+      return data.data;
+    } catch (error) {
+      console.error("Error saving meme:", error);
+      throw error;
+    }
+  }
 }; 

@@ -1,19 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 import { verifyAuth } from "@/lib/auth";
+import { successResponse, errorResponse } from "@/lib/apiResponse";
 
 // Imgflip API credentials (ideally these would be in environment variables)
 const IMGFLIP_USERNAME = process.env.IMGFLIP_USERNAME || "demo_username";
 const IMGFLIP_PASSWORD = process.env.IMGFLIP_PASSWORD || "demo_password";
+
+// Default fallback image if everything fails
+const DEFAULT_FALLBACK_URL = "https://i.imgflip.com/30b1gx.jpg";
+
+// Validate image URL
+function isValidImageUrl(url: string): boolean {
+  if (!url) return false;
+  if (!url.startsWith('http')) return false;
+  if (!url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) return false;
+  return true;
+}
 
 export async function POST(request: NextRequest) {
   try {
     // Verify authentication
     const user = await verifyAuth(request);
     
-    if (!user) {
+    if (!user || !user._id) {
       return NextResponse.json(
-        { error: "Unauthorized" },
+        errorResponse("Unauthorized", 401),
         { status: 401 }
       );
     }
@@ -23,11 +35,10 @@ export async function POST(request: NextRequest) {
     
     if (!templateId) {
       return NextResponse.json(
-        { error: "Template ID is required" },
+        errorResponse("Template ID is required", 400),
         { status: 400 }
       );
     }
- 
     
     // For development/testing, return a reliable fallback URL
     if (process.env.NODE_ENV === "development") {
@@ -41,10 +52,29 @@ export async function POST(request: NextRequest) {
       
       const fallbackUrl = fallbackUrls[templateId as keyof typeof fallbackUrls] || fallbackUrls.default;
       
+      // Validate fallback URL
+      if (!isValidImageUrl(fallbackUrl)) {
+        return NextResponse.json(
+          errorResponse("Invalid fallback image URL", 500),
+          { status: 500 }
+        );
+      }
+      
       // Simulate a delay to mimic API call
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      return NextResponse.json({ url: fallbackUrl });
+      return NextResponse.json(
+        successResponse(
+          { 
+            url: fallbackUrl, 
+            templateId,
+            textElements
+          },
+          "Meme generated successfully",
+          200
+        ),
+        { status: 200 }
+      );
     }
     
     // Create form data for Imgflip API
@@ -89,18 +119,83 @@ export async function POST(request: NextRequest) {
     
     if (!response.data.success) {
       console.error("Imgflip API error:", response.data);
+      // Return default fallback URL if API fails
+      if (isValidImageUrl(DEFAULT_FALLBACK_URL)) {
+        return NextResponse.json(
+          successResponse(
+            { 
+              url: DEFAULT_FALLBACK_URL, 
+              templateId,
+              textElements
+            },
+            "Using fallback image due to API error",
+            200
+          ),
+          { status: 200 }
+        );
+      }
       return NextResponse.json(
-        { error: response.data.error_message || "Failed to generate meme" },
+        errorResponse(response.data.error_message || "Failed to generate meme", 500),
         { status: 500 }
       );
     }
     
-    console.log("Meme generated successfully:", response.data.data.url);
-    return NextResponse.json({ url: response.data.data.url });
+    // Validate the generated image URL
+    const generatedUrl = response.data.data.url;
+    if (!isValidImageUrl(generatedUrl)) {
+      console.error("Invalid image URL from API:", generatedUrl);
+      if (isValidImageUrl(DEFAULT_FALLBACK_URL)) {
+        return NextResponse.json(
+          successResponse(
+            { 
+              url: DEFAULT_FALLBACK_URL, 
+              templateId,
+              textElements
+            },
+            "Using fallback image due to invalid URL",
+            200
+          ),
+          { status: 200 }
+        );
+      }
+      return NextResponse.json(
+        errorResponse("Invalid image URL received from API", 500),
+        { status: 500 }
+      );
+    }
+    
+    console.log("Meme generated successfully:", generatedUrl);
+    return NextResponse.json(
+      successResponse(
+        { 
+          url: generatedUrl,
+          templateId,
+          textElements
+        },
+        "Meme generated successfully",
+        200
+      ),
+      { status: 200 }
+    );
   } catch (error) {
     console.error("Error generating meme:", error);
+    // Try to return default fallback URL if everything fails
+    if (isValidImageUrl(DEFAULT_FALLBACK_URL)) {
+      return NextResponse.json(
+        successResponse(
+          { 
+            url: DEFAULT_FALLBACK_URL, 
+            templateId: "default",
+            textElements: []
+          },
+          "Using fallback image due to error",
+          200
+        ),
+        { status: 200 }
+      );
+    }
     return NextResponse.json(
-      { error: (error as Error).message },
+      errorResponse((error as Error).message || "Failed to generate meme", 500),
       { status: 500 }
     );
   }

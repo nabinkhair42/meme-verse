@@ -145,7 +145,7 @@ export function MemeFeed() {
         if (!page || !page.data || !Array.isArray(page.data)) return page;
         
         // Create a new data array with the updated meme
-        const updatedData = page.data.map(m => {
+        const updatedData = page.data.map((m: Meme) => {
           if (m.id === meme.id) {
             // Use the updated meme's like count instead of incrementing/decrementing
             return {

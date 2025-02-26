@@ -219,13 +219,19 @@ export function MemeCard({ meme, isLiked, isSaved, ...props }: MemeCardProps) {
         
         <Link href={`/meme/${meme.id}`}>
           <div className="relative aspect-video overflow-hidden bg-muted">
-            <Image
-              src={meme.url}
-              alt={meme.title}
-              fill
-              className="object-contain"
-              unoptimized
-            />
+            {meme.imageUrl ? (
+              <Image
+                src={meme.imageUrl}
+                alt={meme.title}
+                fill
+                className="object-contain"
+                unoptimized
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center text-muted-foreground">
+                No image available
+              </div>
+            )}
           </div>
         </Link>
         
@@ -237,12 +243,7 @@ export function MemeCard({ meme, isLiked, isSaved, ...props }: MemeCardProps) {
             </div>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <span>
-                {/* Handle different ways the comment count might be stored */}
-                {(meme as any).commentCount !== undefined 
-                  ? (meme as any).commentCount 
-                  : Array.isArray(meme.comments) 
-                    ? meme.comments.length 
-                    : 0} comments
+                {meme.commentCount || 0} comments
               </span>
             </div>
           </div>

@@ -14,16 +14,16 @@ import { formatDate } from "@/lib/utils";
 import { Meme } from "@/redux/features/memes/memesSlice";
 import { RootState } from "@/redux/store";
 import { memeService } from "@/services/api";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Bookmark, Download, Heart, ImageIcon, Loader2, MessageCircle, Send, Share2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useInView } from "react-intersection-observer";
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
-import { useInView } from "react-intersection-observer";
-import { useInfiniteQuery } from "@tanstack/react-query";
 
 // Define a local comment interface that matches the backend response
 interface CommentData {
@@ -348,7 +348,7 @@ export default function MemePage() {
     
     // Create an anchor element and set properties for download
     const link = document.createElement("a");
-    link.href = memeData.url;
+    link.href = memeData.imageUrl;
     link.download = `meme-${memeData.id}.jpg`;
     document.body.appendChild(link);
     link.click();
@@ -407,9 +407,9 @@ export default function MemePage() {
         <Card className="mb-8 overflow-hidden">
           <CardContent className="p-0">
             <div className="relative aspect-video md:aspect-auto md:h-[500px]">
-              {memeData.url ? (
+              {memeData.imageUrl ? (
                 <Image
-                  src={memeData.url}
+                  src={memeData.imageUrl}
                   alt={memeData.title || 'Meme'}
                   fill
                   className="object-contain"

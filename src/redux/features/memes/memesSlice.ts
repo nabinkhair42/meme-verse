@@ -12,14 +12,21 @@ export interface Meme {
   id: string;
   title: string;
   description?: string;
-  url: string;
+  imageUrl: string;
   category: string;
+  tags?: string[];
   author: string;
   authorId?: string;
+  userAvatar?: string;
   createdAt: string;
+  updatedAt?: string;
   likes: number;
-  comments: Comment[];
-  tags?: string[];
+  commentCount: number;
+  type?: 'generated' | 'uploaded';
+  isGenerated?: boolean;
+  isPublic?: boolean;
+  templateId?: string | null;
+  templateUrl?: string | null;
 }
 
 interface MemesState {
@@ -60,87 +67,72 @@ const initialMemes: Meme[] = [
     id: "1",
     title: "When the code works on the first try",
     description: "That rare moment when everything just works",
-    url: "https://i.imgflip.com/7ry9vh.jpg",
+    imageUrl: "https://i.imgflip.com/7ry9vh.jpg",
     category: "Programming",
     author: "CodeMaster",
     createdAt: "2023-01-15T09:24:00Z",
     likes: 543,
-    comments: [
-      { id: "c1", text: "This never happens to me 😂", author: "BugHunter", createdAt: "2023-01-15T10:30:00Z" },
-      { id: "c2", text: "Must be nice!", author: "JavaScripter", createdAt: "2023-01-15T11:15:00Z" }
-    ],
+    commentCount: 0,
     tags: ["programming", "coding", "success"]
   },
   {
     id: "2",
     title: "Frontend vs Backend",
     description: "The eternal struggle between what users see and what actually happens",
-    url: "https://i.imgflip.com/6yvpkj.jpg",
+    imageUrl: "https://i.imgflip.com/6yvpkj.jpg",
     category: "Programming",
     author: "FullStackDev",
     createdAt: "2023-01-18T14:35:00Z",
     likes: 921,
-    comments: [
-      { id: "c3", text: "As a backend dev, I feel attacked 😅", author: "ServerSide", createdAt: "2023-01-18T15:42:00Z" }
-    ],
+    commentCount: 0,
     tags: ["programming", "frontend", "backend"]
   },
   {
     id: "3",
     title: "When the cat knocks over your water",
     description: "Every cat owner knows this feeling",
-    url: "https://i.imgflip.com/7q1sxg.jpg",
+    imageUrl: "https://i.imgflip.com/7q1sxg.jpg",
     category: "Animals",
     author: "CatLover",
     createdAt: "2023-01-20T08:12:00Z",
     likes: 782,
-    comments: [
-      { id: "c4", text: "My cat does this every morning!", author: "PetOwner", createdAt: "2023-01-20T09:05:00Z" },
-      { id: "c5", text: "That's why I use closed bottles now", author: "LessonLearned", createdAt: "2023-01-20T10:30:00Z" }
-    ],
+    commentCount: 0,
     tags: ["cats", "pets", "funny"]
   },
   {
     id: "4",
     title: "Monday morning feelings",
     description: "That moment when the alarm goes off",
-    url: "https://i.imgflip.com/76j59w.jpg",
+    imageUrl: "https://i.imgflip.com/76j59w.jpg",
     category: "Reactions",
     author: "WeekendLover",
     createdAt: "2023-01-23T07:30:00Z",
     likes: 1032,
-    comments: [
-      { id: "c6", text: "Me every single Monday 😭", author: "SleepyHead", createdAt: "2023-01-23T08:15:00Z" }
-    ],
+    commentCount: 0,
     tags: ["monday", "morning", "work"]
   },
   {
     id: "5",
     title: "Debugging be like",
     description: "When you've been staring at the same code for hours",
-    url: "https://i.imgflip.com/7slwsi.jpg",
+    imageUrl: "https://i.imgflip.com/7slwsi.jpg",
     category: "Programming",
     author: "BugFixer",
     createdAt: "2023-01-25T16:20:00Z",
     likes: 876,
-    comments: [
-      { id: "c7", text: "And then it's just a missing semicolon", author: "SyntaxError", createdAt: "2023-01-25T17:00:00Z" },
-      { id: "c8", text: "Story of my life", author: "DevLife", createdAt: "2023-01-25T18:12:00Z" }
-    ],
+    commentCount: 0,
     tags: ["programming", "debugging", "coding"]
   },
   {
     id: "6",
     title: "When someone uses light mode",
     description: "Dark mode users be like",
-    url: "https://i.imgflip.com/6o7hks.jpg",
+    imageUrl: "https://i.imgflip.com/6o7hks.jpg",
     category: "Programming",
     author: "DarkThemeFan",
     createdAt: "2023-01-28T20:15:00Z",
     likes: 654,
-    comments: [
-      { id: "c9", text: "My eyes!!!", author: "NightOwl", createdAt: "2023-01-28T21:05:00Z" }
-    ],
+    commentCount: 0,
     tags: ["darkmode", "programming", "lightmode"]
   }
 ];
@@ -219,7 +211,7 @@ const memesSlice = createSlice({
       const { memeId, comment } = action.payload;
       const meme = state.items.find(m => m.id === memeId);
       if (meme) {
-        meme.comments.push(comment);
+        meme.commentCount += 1;
       }
     }
   },

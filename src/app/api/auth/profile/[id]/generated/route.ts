@@ -48,7 +48,7 @@ export async function GET(
     // Build query for generated memes
     const query = {
       userId: userId,
-      type: "generated"
+      isGenerated: true // Changed from type to isGenerated
     };
     
     // First check if user has any generated memes
@@ -95,19 +95,20 @@ export async function GET(
     const formattedMemes = memesResult.map(meme => ({
       id: meme._id.toString(),
       title: meme.title || "",
-      imageUrl: meme.imageUrl,
+      url: meme.url, // Changed from imageUrl to url to match the schema
       description: meme.description || "",
       likes: meme.likes || 0,
       commentCount: meme.commentCount || 0,
       category: meme.category || "Generated",
       createdAt: meme.createdAt || new Date().toISOString(),
-      author: meme.username || "Anonymous",
-      authorId: meme.userId,
+      author: meme.author || currentUser.username || "Anonymous",
+      authorId: meme.userId || userId,
       type: "generated",
       tags: meme.tags || [],
-      userAvatar: meme.userAvatar,
+      userAvatar: meme.userAvatar || currentUser.avatar,
       templateId: meme.templateId,
-      templateUrl: meme.templateUrl
+      templateUrl: meme.templateUrl,
+      comments: meme.comments || []
     }));
     
     return NextResponse.json(

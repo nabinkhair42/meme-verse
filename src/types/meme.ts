@@ -18,6 +18,33 @@ export interface Meme {
   type: 'generated' | 'uploaded';
   templateId?: string;
   templateUrl?: string;
+  textElements?: TextElement[];
+}
+
+/**
+ * TextElement interface - represents a text element in a meme
+ */
+export interface TextElement {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  color: string;
+  strokeColor: string;
+  rotation: number;
+}
+
+/**
+ * MemeTemplate interface - represents a meme template
+ */
+export interface MemeTemplate {
+  id: string;
+  name: string;
+  url: string;
+  width: number;
+  height: number;
+  box_count: number;
 }
 
 /**
@@ -32,6 +59,7 @@ export interface MemeCreateInput {
   type: 'generated' | 'uploaded';
   templateId?: string;
   templateUrl?: string;
+  textElements?: TextElement[];
 }
 
 /**
@@ -42,6 +70,7 @@ export interface MemeUpdateInput {
   description?: string;
   tags?: string[];
   category?: string;
+  textElements?: TextElement[];
 }
 
 /**
@@ -63,4 +92,23 @@ export interface PaginatedMemes {
     limit: number;
     totalPages: number;
   };
+}
+
+/**
+ * GenerateMemeInput - data required to generate a new meme
+ */
+export interface GenerateMemeInput {
+  templateId: string;
+  topText?: string;
+  bottomText?: string;
+  textElements?: TextElement[];
+}
+
+/**
+ * GenerateMemeResponse - response from meme generation
+ */
+export interface GenerateMemeResponse {
+  url: string;
+  templateId: string;
+  textElements?: TextElement[];
 } 
