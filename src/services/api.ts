@@ -221,7 +221,7 @@ export const imgflipService = {
         // Validate templates
         const templates = response.data.templates;
         const validTemplates = templates.filter((template: any) => {
-          return template && typeof template === 'object' && template.id && template.url;
+          return template && typeof template === 'object' && template.id && template.imageUrl;
         });
         
         if (validTemplates.length === 0) {
