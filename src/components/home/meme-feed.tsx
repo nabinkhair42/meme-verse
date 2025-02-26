@@ -48,11 +48,28 @@ export function MemeFeed() {
   } = useInfiniteQuery({
     queryKey: ['feed-memes', activeTab],
     queryFn: async ({ pageParam = 1 }) => {
-      return await memeService.getMemes({
-        sort: activeTab === 'trending' ? 'likes' : 'newest',
-        page: pageParam,
-        limit: 10
-      });
+      if (activeTab === 'trending') {
+        try {
+          // Use the new trending API for the trending tab
+          console.log(`Fetching trending memes for feed, page: ${pageParam}`);
+          return await memeService.getTrendingMemes(pageParam, 10, 'week');
+        } catch (error) {
+          console.error("Error using trending API, falling back to regular API:", error);
+          // Fall back to the regular API if the trending API fails
+          return await memeService.getMemes({
+            sort: 'likes',
+            page: pageParam,
+            limit: 10
+          });
+        }
+      } else {
+        // Use the regular API for the "for you" tab
+        return await memeService.getMemes({
+          sort: 'newest',
+          page: pageParam,
+          limit: 10
+        });
+      }
     },
     getNextPageParam: (lastPage) => {
       if (!lastPage.pagination) return undefined;
@@ -162,8 +179,8 @@ export function MemeFeed() {
   
   // Flatten all memes from all pages
   const allMemes = data?.pages.flatMap(page => {
-    // Check if page.data exists and is an array
-    const memes = page && page.data;
+    // Check if page has data property (new API) or memes property (old API)
+    const memes = page.data || page.memes;
     return Array.isArray(memes) ? memes : [];
   }) || [];
   

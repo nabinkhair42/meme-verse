@@ -1,6 +1,6 @@
-import axios, { InternalAxiosRequestConfig } from "axios";
-import { toast } from "sonner";
 import { ApiResponse } from "@/lib/apiResponse";
+import axios from "axios";
+import { toast } from "sonner";
 
 const IMGBB_API_KEY = process.env.NEXT_PUBLIC_IMGBB_API_KEY;
 
@@ -322,35 +322,43 @@ export const imgflipService = {
   },
 
   // Get trending memes
-  getTrendingMemes: async () => {
+  getTrendingMemes: async (page = 1, limit = 10, period = 'week') => {
     try {
-      // First try to get from API
-      const response = await api.get('/memes?sort=likes&limit=10');
-      return response.data.memes;
+      const response = await api.get('/api/feed/trending', {
+        params: { page, limit, period }
+      });
+      
+      // Check if the response has the expected structure
+      if (response.data && response.data.success && response.data.data) {
+        // Map the memes to the expected format
+        const mappedMemes = response.data.data.memes.map((meme: any) => ({
+          id: meme._id || meme.id, // Use _id as id if available
+          title: meme.title,
+          description: meme.description || '',
+          url: meme.imageUrl || meme.url, // Use imageUrl as url if available
+          category: meme.category || 'Other',
+          author: meme.username || meme.author || 'Unknown',
+          authorId: meme.userId || meme.authorId || '',
+          createdAt: meme.createdAt,
+          likes: meme.likes || 0,
+          commentCount: meme.commentCount || 0,
+          comments: meme.comments || [],
+          tags: meme.tags || [],
+          isLiked: meme.isLiked || false,
+          isSaved: meme.isSaved || false
+        }));
+        
+        return {
+          data: mappedMemes,
+          pagination: response.data.data.pagination
+        };
+      }
+      
+      // Fallback to the original response if it doesn't match the expected structure
+      return response.data;
     } catch (error) {
       console.error("Error fetching trending memes:", error);
-      
-      // Fallback: Generate mock data from Imgflip templates
-      try {
-        const templates = await imgflipService.getTemplates();
-        return templates.slice(0, 10).map((meme: any) => ({
-          id: meme.id,
-          title: meme.name,
-          url: meme.url,
-          author: "Imgflip User",
-          createdAt: new Date().toISOString(),
-          likes: Math.floor(Math.random() * 1000),
-          comments: [],
-          category: ["Trending", "Programming", "Reactions", "Animals"][
-            Math.floor(Math.random() * 4)
-          ],
-          description: `A popular meme template: ${meme.name}`,
-          tags: ["trending", "popular", meme.name.toLowerCase().split(" ")[0]],
-        }));
-      } catch (fallbackError) {
-        console.error("Fallback error:", fallbackError);
-        return []; // Return empty array as last resort
-      }
+      throw error;
     }
   },
 };
@@ -733,6 +741,192 @@ export const memeService = {
     } catch (error) {
       console.error("Error creating user-generated meme:", error);
       throw error;
+    }
+  },
+
+  /**
+   * Get trending memes with pagination and period filtering
+   * @param page Page number (starts at 1)
+   * @param limit Number of memes per page
+   * @param period Time period ('day', 'week', 'month', 'all')
+   * @returns Paginated response with memes
+   */
+  async getTrendingMemes(page = 1, limit = 10, period = 'week') {
+    try {
+      // Try to use the dedicated trending API
+      const response = await api.get(`/api/feed/trending`, {
+        params: { page, limit, period }
+      });
+      
+      // Check if the response has the expected structure
+      if (response.data && response.data.success && response.data.data) {
+        // Map the memes to the expected format
+        const memes = response.data.data.memes.map((meme: any) => ({
+          id: meme._id || meme.id,
+          title: meme.title,
+          description: meme.description,
+          url: meme.imageUrl || meme.url,
+          category: meme.category,
+          author: meme.username || meme.author,
+          createdAt: meme.createdAt,
+          likes: meme.likes || 0,
+          commentCount: meme.commentCount || meme.comments?.length || 0,
+          comments: meme.comments || [],
+          tags: meme.tags || [],
+          isLiked: meme.isLiked || false,
+          isSaved: meme.isSaved || false
+        }));
+        
+        return {
+          data: memes,
+          pagination: response.data.data.pagination
+        };
+      }
+      
+      // If the response doesn't have the expected structure, return it as is
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching trending memes:", error);
+      
+      // Fall back to the regular API
+      console.log("Falling back to regular API for trending memes");
+      return this.getMemes({
+        sort: 'likes',
+        period: period === 'all' ? undefined : period,
+        page,
+        limit
+      });
+    }
+  },
+
+  /**
+   * Search for memes with filters
+   * @param options Search options
+   * @returns Paginated response with memes
+   */
+  searchMemes: async function(options: { 
+    search?: string; 
+    category?: string; 
+    sort?: string; 
+    page?: number; 
+    limit?: number 
+  }) {
+    try {
+      const { search = '', category = '', sort = 'newest', page = 1, limit = 10 } = options;
+      
+      const params = new URLSearchParams();
+      if (search) params.append('search', search);
+      if (category) params.append('category', category);
+      if (sort) params.append('sort', sort);
+      if (page) params.append('page', page.toString());
+      if (limit) params.append('limit', limit.toString());
+      
+      const response = await api.get(`/api/search?${params.toString()}`);
+      
+      // Check if the response has the expected structure
+      if (response.data && response.data.success && response.data.data) {
+        // Map the memes to the expected format
+        const mappedMemes = response.data.data.memes.map((meme: any) => ({
+          id: meme._id || meme.id,
+          title: meme.title,
+          description: meme.description || '',
+          url: meme.imageUrl || meme.url,
+          category: meme.category || 'Other',
+          author: meme.username || meme.author || 'Unknown',
+          authorId: meme.userId || meme.authorId || '',
+          createdAt: meme.createdAt,
+          likes: meme.likes || 0,
+          commentCount: meme.commentCount || 0,
+          comments: meme.comments || [],
+          tags: meme.tags || [],
+          isLiked: meme.isLiked || false,
+          isSaved: meme.isSaved || false
+        }));
+        
+        return {
+          data: mappedMemes,
+          pagination: response.data.data.pagination
+        };
+      }
+      
+      // Fallback to the original response if it doesn't match the expected structure
+      return response.data;
+    } catch (error) {
+      console.error("Error searching memes:", error);
+      
+      // Fall back to the regular API
+      console.log("Falling back to regular API for search");
+      return this.getMemes({
+        search: options?.search,
+        category: options?.category,
+        sort: options?.sort,
+        page: options?.page,
+        limit: options?.limit
+      });
+    }
+  },
+
+  /**
+   * Get memes by category
+   * @param category Category name
+   * @param options Additional options
+   * @returns Paginated response with memes
+   */
+  getMemesByCategory: async function(category: string, options: { 
+    sort?: string; 
+    page?: number; 
+    limit?: number 
+  } = {}) {
+    try {
+      const { sort = 'newest', page = 1, limit = 10 } = options;
+      
+      const params = new URLSearchParams();
+      params.append('category', category);
+      if (sort) params.append('sort', sort);
+      if (page) params.append('page', page.toString());
+      if (limit) params.append('limit', limit.toString());
+      
+      const response = await api.get(`/api/category?${params.toString()}`);
+      
+      // Check if the response has the expected structure
+      if (response.data && response.data.success && response.data.data) {
+        // Map the memes to the expected format
+        const mappedMemes = response.data.data.memes.map((meme: any) => ({
+          id: meme._id || meme.id,
+          title: meme.title,
+          description: meme.description || '',
+          url: meme.imageUrl || meme.url,
+          category: meme.category || 'Other',
+          author: meme.username || meme.author || 'Unknown',
+          authorId: meme.userId || meme.authorId || '',
+          createdAt: meme.createdAt,
+          likes: meme.likes || 0,
+          commentCount: meme.commentCount || 0,
+          comments: meme.comments || [],
+          tags: meme.tags || [],
+          isLiked: meme.isLiked || false,
+          isSaved: meme.isSaved || false
+        }));
+        
+        return {
+          data: mappedMemes,
+          pagination: response.data.data.pagination
+        };
+      }
+      
+      // Fallback to the original response if it doesn't match the expected structure
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching memes for category ${category}:`, error);
+      
+      // Fall back to the regular API
+      console.log("Falling back to regular API for category");
+      return this.getMemes({
+        category,
+        sort: options?.sort,
+        page: options?.page,
+        limit: options?.limit
+      });
     }
   },
 };

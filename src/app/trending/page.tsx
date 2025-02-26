@@ -31,6 +31,17 @@ export default function TrendingPage() {
     rootMargin: "200px",
   });
   
+  // Map tab values to API period values
+  const getPeriodFromTab = (tab: string) => {
+    switch (tab) {
+      case 'today': return 'day';
+      case 'week': return 'week';
+      case 'month': return 'month';
+      case 'all-time': return 'all';
+      default: return 'week';
+    }
+  };
+  
   // Fetch memes with infinite scrolling
   const {
     data,
@@ -42,12 +53,24 @@ export default function TrendingPage() {
   } = useInfiniteQuery({
     queryKey: ['trending-memes', activeTab],
     queryFn: async ({ pageParam = 1 }) => {
-      return await memeService.getMemes({
-        sort: 'likes',
-        period: activeTab,
-        page: pageParam,
-        limit: 12
-      });
+      try {
+        // Use the new trending API with the appropriate period
+        console.log(`Fetching trending memes with period: ${getPeriodFromTab(activeTab)}, page: ${pageParam}`);
+        return await memeService.getTrendingMemes(
+          pageParam, 
+          12, 
+          getPeriodFromTab(activeTab)
+        );
+      } catch (error) {
+        console.error("Error using trending API, falling back to regular API:", error);
+        // Fall back to the regular API if the trending API fails
+        return await memeService.getMemes({
+          sort: 'likes',
+          period: activeTab,
+          page: pageParam,
+          limit: 12
+        });
+      }
     },
     getNextPageParam: (lastPage) => {
       if (!lastPage.pagination) return undefined;
@@ -114,8 +137,8 @@ export default function TrendingPage() {
   
   // Flatten all memes from all pages
   const allMemes = data?.pages.flatMap(page => {
-    // Check if page.memes exists and is an array
-    const memes = page && (page as any).memes;
+    // Check if page has data property (new API) or memes property (old API)
+    const memes = page.data || page.memes;
     return Array.isArray(memes) ? memes : [];
   }) || [];
   

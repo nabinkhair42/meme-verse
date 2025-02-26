@@ -1,24 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import { useInView } from "react-intersection-observer";
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Search as SearchIcon, Filter, TrendingUp, Clock, X } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { memeService } from "@/services/api";
-import { MemeCard } from "@/components/meme-card";
-import { useSelector } from "react-redux";
-import { RootState } from "@/redux/store";
-import { Badge } from "@/components/ui/badge";
-import { FaFire } from "react-icons/fa";
 import { LeftSidebar } from "@/components/home/left-sidebar";
 import { RightSidebar } from "@/components/home/right-sidebar";
+import { MemeCard } from "@/components/meme-card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
+import { RootState } from "@/redux/store";
+import { memeService } from "@/services/api";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "framer-motion";
+import { Clock, Filter, Loader2, Search as SearchIcon, TrendingUp, X } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, useMemo } from "react";
+import { FaFire } from "react-icons/fa";
+import { useInView } from "react-intersection-observer";
+import { useSelector } from "react-redux";
 
 export default function SearchPage() {
   const router = useRouter();
@@ -71,19 +71,37 @@ export default function SearchPage() {
   } = useInfiniteQuery({
     queryKey: ['search-memes', searchQuery, activeCategory, activeSort],
     queryFn: async ({ pageParam = 1 }) => {
-      return await memeService.getMemes({
-        search: searchQuery,
-        category: activeCategory,
-        sort: activeSort,
-        page: pageParam,
-        limit: 12
-      });
+      console.log(`Fetching search page ${pageParam} with query: ${searchQuery}, category: ${activeCategory}, sort: ${activeSort}`);
+      try {
+        // Use the new searchMemes API
+        const result = await memeService.searchMemes({
+          search: searchQuery,
+          category: activeCategory !== 'All' ? activeCategory : '',
+          sort: activeSort,
+          page: pageParam,
+          limit: 12
+        });
+        
+        return result;
+      } catch (err) {
+        console.error("Error fetching search results:", err);
+        // Fall back to the old API if the new one fails
+        return memeService.getMemes({
+          search: searchQuery,
+          category: activeCategory !== 'All' ? activeCategory : '',
+          sort: activeSort,
+          page: pageParam,
+          limit: 12
+        });
+      }
     },
     getNextPageParam: (lastPage) => {
-      if (!lastPage.pagination) return undefined;
-      return lastPage.pagination.page < lastPage.pagination.totalPages 
-        ? lastPage.pagination.page + 1 
-        : undefined;
+      // Check if the response has the expected structure
+      if (lastPage && lastPage.pagination) {
+        const { page, totalPages } = lastPage.pagination;
+        return page < totalPages ? page + 1 : undefined;
+      }
+      return undefined;
     },
     initialPageParam: 1
   });
@@ -156,12 +174,21 @@ export default function SearchPage() {
     setActiveSort("newest");
   };
   
-  // Flatten all memes from all pages
-  const allMemes = data?.pages.flatMap(page => {
-    // Check if page.memes exists and is an array
-    const memes = page && (page as any).memes;
-    return Array.isArray(memes) ? memes : [];
-  }) || [];
+  // Update the memes variable to handle both API response formats
+  const memes = useMemo(() => {
+    if (!data) return [];
+    
+    // Flatten all pages of memes
+    return data.pages.flatMap(page => {
+      // Check if the response has the expected structure
+      if (page && page.data) {
+        return page.data;
+      } else if (page && page.memes) {
+        return page.memes;
+      }
+      return [];
+    });
+  }, [data]);
   
   // Animation variants
   const container = {
@@ -396,7 +423,7 @@ export default function SearchPage() {
                         </Button>
                       </CardContent>
                     </Card>
-                  ) : allMemes.length === 0 ? (
+                  ) : memes.length === 0 ? (
                     <Card>
                       <CardContent className="p-6 text-center">
                         <p className="mb-2">No memes found matching your criteria</p>
@@ -414,7 +441,7 @@ export default function SearchPage() {
                           initial="hidden"
                           animate="show"
                         >
-                          {allMemes
+                          {memes
                             .filter(meme => meme && meme.id) // Filter out any memes without an id
                             .map((meme) => (
                               <motion.div key={meme.id} variants={item} layout>
@@ -440,7 +467,7 @@ export default function SearchPage() {
                           </div>
                         )}
                         
-                        {!hasNextPage && allMemes.length > 0 && (
+                        {!hasNextPage && memes.length > 0 && (
                           <p className="text-muted-foreground">You've reached the end!</p>
                         )}
                       </div>

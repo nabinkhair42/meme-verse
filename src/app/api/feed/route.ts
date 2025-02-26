@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     if (user) {
       // Get categories from user's liked and saved memes
       const userLikes = await db.collection("likes")
-        .find({ userId: user.id })
+        .find({ userId: user._id })
         .toArray();
       
       const likedMemeIds = userLikes.map(like => like.memeId);
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
       const likedCategories = [...new Set(
         (await db.collection("memes")
           .find({ id: { $in: await db.collection("likes")
-            .find({ userId: user.id })
+            .find({ userId: user._id })
             .map(like => like.memeId)
             .toArray() } })
           .toArray())

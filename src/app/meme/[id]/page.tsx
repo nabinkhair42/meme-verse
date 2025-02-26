@@ -23,6 +23,21 @@ import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
 
+// Define a local comment interface that matches the backend response
+interface CommentData {
+  _id?: string;
+  id?: string;
+  memeId: string;
+  userId: string;
+  username: string;
+  author?: string;
+  userAvatar?: string;
+  content: string;
+  text?: string;
+  createdAt: Date | string;
+  updatedAt?: Date | string;
+}
+
 export default function MemePage() {
   const { id } = useParams();
   const router = useRouter();
@@ -40,6 +55,7 @@ export default function MemePage() {
   const [hasSaved, setHasSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [comments, setComments] = useState<CommentData[]>([]);
   
   // Check if the current user has liked or saved this meme
   const isLiked = likedMemes.includes(id as string);
@@ -57,29 +73,42 @@ export default function MemePage() {
         const data = await memeService.getMemeById(id as string);
         
         // Fetch comments separately
-        let comments: Comment[] = [];
         try {
-          comments = await memeService.getComments(id as string);
-          // Ensure comments is an array
-          if (!Array.isArray(comments)) {
-            console.error("Comments is not an array:", comments);
-            comments = [];
-          }
+          const commentsData = await memeService.getComments(id as string);
+          console.log("Fetched comments:", commentsData);
+          
+          // Process comments to match our local interface
+          const processedComments = Array.isArray(commentsData) 
+            ? commentsData.map(comment => ({
+                id: comment.id || (comment as any)._id,
+                _id: (comment as any)._id || comment.id,
+                memeId: (comment as any).memeId,
+                userId: (comment as any).userId,
+                username: (comment as any).username || (comment as any).author,
+                author: (comment as any).username || (comment as any).author,
+                userAvatar: (comment as any).userAvatar,
+                content: (comment as any).content || (comment as any).text,
+                text: (comment as any).content || (comment as any).text,
+                createdAt: comment.createdAt,
+                updatedAt: (comment as any).updatedAt
+              }))
+            : [];
+          
+          setComments(processedComments);
         } catch (commentError) {
           console.error("Error fetching comments:", commentError);
-          comments = [];
+          setComments([]);
         }
         
         // Ensure data has all required properties
         const processedData = {
           ...data,
-          comments: comments,
           likes: data.likes || 0,
           tags: data.tags || [],
           description: data.description || ''
         };
         
-        setMemeData(processedData as Meme);
+        setMemeData(processedData as any);
         
         // Check if user has liked this meme
         if (isAuthenticated) {
@@ -99,11 +128,10 @@ export default function MemePage() {
         if (localMeme) {
           setMemeData({
             ...localMeme,
-            comments: Array.isArray(localMeme.comments) ? localMeme.comments : [],
             likes: localMeme.likes || 0,
             tags: localMeme.tags || [],
             description: localMeme.description || ''
-          });
+          } as any);
           setError(null);
         }
       } finally {
@@ -200,22 +228,30 @@ export default function MemePage() {
       console.log(`Comment response for meme ${memeData.id}:`, newComment);
       
       // Ensure newComment is valid
-      if (!newComment || !newComment.id) {
+      if (!newComment) {
         throw new Error("Invalid comment data received from server");
       }
       
-      // Update local state with new comment
-      setMemeData(prev => {
-        if (!prev) return prev;
-        
-        // Ensure comments is an array
-        const currentComments = Array.isArray(prev.comments) ? prev.comments : [];
-        
-        return {
-          ...prev,
-          comments: [...currentComments, newComment]
-        };
-      });
+      // Process the new comment to match our local interface
+      // Log the actual structure of the newComment object to debug type issues
+      console.log('New comment structure:', JSON.stringify(newComment, null, 2));
+      
+      const processedComment: CommentData = {
+        id: newComment.id || (newComment as any)._id || '',
+        _id: (newComment as any)._id || newComment.id || '',
+        memeId: (newComment as any).memeId || memeData.id,
+        userId: (newComment as any).userId || user?.id || '',
+        username: (newComment as any).username || profile?.username || user?.username || 'Anonymous',
+        author: (newComment as any).username || profile?.username || user?.username || 'Anonymous',
+        userAvatar: (newComment as any).userAvatar || profile?.avatar || '',
+        content: (newComment as any).content || commentToSubmit,
+        text: (newComment as any).content || commentToSubmit,
+        createdAt: newComment.createdAt || new Date().toISOString(),
+        updatedAt: (newComment as any).updatedAt || new Date().toISOString()
+      };
+      
+      // Update comments state
+      setComments(prevComments => [...prevComments, processedComment]);
       
       // Clear input
       setCommentText("");
@@ -429,7 +465,7 @@ export default function MemePage() {
         
         {/* Comments Section with real-time updates */}
         <div>
-          <h3 className="text-xl font-semibold mb-6">Comments ({memeData.comments?.length || 0})</h3>
+          <h3 className="text-xl font-semibold mb-6">Comments ({comments.length})</h3>
           
           <form onSubmit={handleAddComment} className="flex gap-4 mb-8">
             <Avatar>
@@ -460,7 +496,7 @@ export default function MemePage() {
           </form>
           
           <AnimatePresence>
-            {!memeData.comments || !Array.isArray(memeData.comments) || memeData.comments.length === 0 ? (
+            {comments.length === 0 ? (
               <div className="text-center py-12 bg-muted/30 rounded-lg">
                 <MessageCircle className="h-8 w-8 mx-auto mb-4 text-muted-foreground" />
                 <h4 className="text-lg font-semibold mb-2">No comments yet</h4>
@@ -472,30 +508,30 @@ export default function MemePage() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
               >
-                {memeData.comments.map((comment) => (
+                {comments.map((comment) => (
                   <motion.div 
-                    key={comment.id || `comment-${Math.random()}`}
+                    key={comment.id || comment._id || `comment-${Math.random()}`}
                     className="flex gap-4"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                   >
                     <Avatar>
                       <AvatarImage 
-                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.author}`} 
-                        alt={comment.author}
+                        src={comment.userAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.username || comment.author}`} 
+                        alt={comment.username || comment.author || 'User'}
                       />
                       <AvatarFallback>
-                        {comment.author?.[0]?.toUpperCase() || '?'}
+                        {(comment.username || comment.author || '?')[0]?.toUpperCase() || '?'}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold">{comment.author}</span>
+                        <span className="font-semibold">{comment.username || comment.author}</span>
                         <span className="text-xs text-muted-foreground">
-                          {formatDate(comment.createdAt)}
+                          {formatDate(comment.createdAt as string)}
                         </span>
                       </div>
-                      <p className="text-sm">{comment.text || (comment as any).content}</p>
+                      <p className="text-sm">{comment.content || comment.text}</p>
                     </div>
                   </motion.div>
                 ))}

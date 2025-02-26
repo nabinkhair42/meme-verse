@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
         imageUrl: memeData.imageUrl,
         description: memeData.description,
         tags: Array.isArray(memeData.tags) ? memeData.tags : [],
-        category: memeData.category,
+        category: memeData.category ? memeData.category.toLowerCase() : 'other',
         type: memeData.type || 'uploaded',
         templateId: memeData.templateId,
         templateUrl: memeData.templateUrl

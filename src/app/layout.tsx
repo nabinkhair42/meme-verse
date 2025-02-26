@@ -9,7 +9,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "MemeVerse",
+  title: "MemeVerse - The best memes on the internet",
   description: "Create, share, and discover the best memes on the internet",
 };
 

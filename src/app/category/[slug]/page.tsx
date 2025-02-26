@@ -1,27 +1,31 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
-import { useInView } from "react-intersection-observer";
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Hash } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { memeService } from "@/services/api";
 import { MemeCard } from "@/components/meme-card";
-import { useSelector } from "react-redux";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { RootState } from "@/redux/store";
+import { memeService } from "@/services/api";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "framer-motion";
+import { Hash, Loader2, Clock, TrendingUp } from "lucide-react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useInView } from "react-intersection-observer";
+import { useSelector } from "react-redux";
+import { FaFire } from "react-icons/fa";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function CategoryPage() {
-  const { slug } = useParams();
-  const categoryName = typeof slug === 'string' ? slug : '';
-  const formattedCategory = categoryName.charAt(0).toUpperCase() + categoryName.slice(1);
+  const params = useParams();
+  // Ensure slug is a string
+  const slug = typeof params.slug === 'string' ? params.slug : Array.isArray(params.slug) ? params.slug[0] : '';
+  const formattedCategory = slug.charAt(0).toUpperCase() + slug.slice(1);
   
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
   
+  const [activeSort, setActiveSort] = useState("newest");
   const [likedMemes, setLikedMemes] = useState<Record<string, boolean>>({});
   const [savedMemes, setSavedMemes] = useState<Record<string, boolean>>({});
   
@@ -38,23 +42,41 @@ export default function CategoryPage() {
     hasNextPage,
     isFetchingNextPage,
     status,
-    error
+    error,
+    refetch
   } = useInfiniteQuery({
-    queryKey: ['category-memes', categoryName],
+    queryKey: ['category-memes', slug, activeSort],
     queryFn: async ({ pageParam = 1 }) => {
-      return await memeService.getMemes({
-        category: formattedCategory,
-        page: pageParam,
-        limit: 12
-      });
+      console.log(`Fetching category page ${pageParam} for ${slug}, sort: ${activeSort}`);
+      try {
+        // Use the new getMemesByCategory API
+        const result = await memeService.getMemesByCategory(slug, {
+          sort: activeSort,
+          page: pageParam,
+          limit: 12
+        });
+        
+        return result;
+      } catch (err) {
+        console.error(`Error fetching category ${slug}:`, err);
+        // Fall back to the old API if the new one fails
+        return memeService.getMemes({
+          category: formattedCategory,
+          sort: activeSort,
+          page: pageParam,
+          limit: 12
+        });
+      }
     },
     getNextPageParam: (lastPage) => {
-      if (!lastPage.pagination) return undefined;
-      return lastPage.pagination.page < lastPage.pagination.totalPages 
-        ? lastPage.pagination.page + 1 
-        : undefined;
+      // Check if the response has the expected structure
+      if (lastPage && lastPage.pagination) {
+        const { page, totalPages } = lastPage.pagination;
+        return page < totalPages ? page + 1 : undefined;
+      }
+      return undefined;
     },
-    initialPageParam: 1
+    initialPageParam: 1,
   });
   
   // Load more memes when the user scrolls to the bottom
@@ -69,7 +91,15 @@ export default function CategoryPage() {
     const checkInteractionStatus = async () => {
       if (!isAuthenticated || !data) return;
       
-      const allMemes = data.pages.flatMap(page => (page as any).memes);
+      const allMemes = data.pages.flatMap(page => {
+        // Check if the response has the expected structure
+        if (page && page.data) {
+          return page.data;
+        } else if (page && page.memes) {
+          return page.memes;
+        }
+        return [];
+      });
       
       for (const meme of allMemes) {
         try {
@@ -102,8 +132,21 @@ export default function CategoryPage() {
     setSavedMemes(prev => ({ ...prev, [meme.id]: newState }));
   };
   
-  // Flatten all memes from all pages
-  const allMemes = data?.pages.flatMap(page => (page as any).memes) || [];
+  // Update the memes variable to handle both API response formats
+  const memes = useMemo(() => {
+    if (!data) return [];
+    
+    // Flatten all pages of memes
+    return data.pages.flatMap(page => {
+      // Check if the response has the expected structure
+      if (page && page.data) {
+        return page.data;
+      } else if (page && page.memes) {
+        return page.memes;
+      }
+      return [];
+    });
+  }, [data]);
   
   // Animation variants
   const container = {
@@ -128,9 +171,45 @@ export default function CategoryPage() {
           <Hash className="mr-2 h-8 w-8 text-primary" />
           {formattedCategory} Memes
         </h1>
-        <p className="text-muted-foreground">
+        <p className="text-muted-foreground mb-6">
           Browse the best {formattedCategory.toLowerCase()} memes on MemeVerse
         </p>
+        
+        {/* Sort options */}
+        <div className="mb-6">
+          <h2 className="text-sm font-medium mb-3 text-muted-foreground">Sort by</h2>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={activeSort === "newest" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setActiveSort("newest")}
+              className={activeSort === "newest" ? "bg-primary/90 hover:bg-primary" : ""}
+            >
+              <Clock className="mr-2 h-4 w-4" />
+              Newest
+            </Button>
+            
+            <Button
+              variant={activeSort === "likes" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setActiveSort("likes")}
+              className={activeSort === "likes" ? "bg-primary/90 hover:bg-primary" : ""}
+            >
+              <FaFire className="mr-2 h-4 w-4" />
+              Most Liked
+            </Button>
+            
+            <Button
+              variant={activeSort === "comments" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setActiveSort("comments")}
+              className={activeSort === "comments" ? "bg-primary/90 hover:bg-primary" : ""}
+            >
+              <TrendingUp className="mr-2 h-4 w-4" />
+              Most Commented
+            </Button>
+          </div>
+        </div>
       </div>
       
       {status === 'pending' ? (
@@ -169,12 +248,12 @@ export default function CategoryPage() {
         <Card>
           <CardContent className="p-6 text-center">
             <p className="text-red-500 mb-2">Failed to load memes</p>
-            <Button onClick={() => window.location.reload()}>
+            <Button onClick={() => refetch()}>
               Try Again
             </Button>
           </CardContent>
         </Card>
-      ) : allMemes.length === 0 ? (
+      ) : memes.length === 0 ? (
         <Card>
           <CardContent className="p-6 text-center">
             <p className="mb-2">No memes found in this category</p>
@@ -192,7 +271,7 @@ export default function CategoryPage() {
               initial="hidden"
               animate="show"
             >
-              {allMemes.map((meme) => (
+              {memes.map((meme) => (
                 <motion.div key={meme.id} variants={item} layout>
                   <MemeCard 
                     meme={meme}
@@ -216,7 +295,7 @@ export default function CategoryPage() {
               </div>
             )}
             
-            {!hasNextPage && allMemes.length > 0 && (
+            {!hasNextPage && memes.length > 0 && (
               <p className="text-muted-foreground">You&apos;ve reached the end!</p>
             )}
           </div>

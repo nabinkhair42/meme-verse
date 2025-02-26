@@ -4,7 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import Link from "next/link";
-import { Home, Bookmark, User, TrendingUp, Clock, Settings, Search } from "lucide-react";
+import { Home, Bookmark, User, TrendingUp, Clock, Settings, Search, Hash } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 interface LeftSidebarProps {
   isAuthenticated: boolean;
@@ -12,6 +13,24 @@ interface LeftSidebarProps {
 }
 
 export function LeftSidebar({ isAuthenticated, user }: LeftSidebarProps) {
+  const pathname = usePathname();
+  
+  // Popular categories
+  const categories = [
+    "Programming", "Reactions", "Animals", "Gaming", "Movies", "Wholesome"
+  ];
+  
+  // Check if a path is active
+  const isActive = (path: string) => {
+    if (path === '/') return pathname === '/';
+    return pathname.startsWith(path);
+  };
+  
+  // Check if a category is active
+  const isCategoryActive = (category: string) => {
+    return pathname === `/category/${category.toLowerCase()}`;
+  };
+  
   return (
     <div className="space-y-4">
       <Card>
@@ -43,21 +62,33 @@ export function LeftSidebar({ isAuthenticated, user }: LeftSidebarProps) {
           )}
           
           <nav className="space-y-1">
-            <Button variant="ghost" className="w-full justify-start" asChild>
+            <Button 
+              variant={isActive('/') ? "default" : "ghost"} 
+              className="w-full justify-start" 
+              asChild
+            >
               <Link href="/">
                 <Home className="mr-2 h-4 w-4" />
                 Home
               </Link>
             </Button>
             
-            <Button variant="ghost" className="w-full justify-start" asChild>
+            <Button 
+              variant={isActive('/search') ? "default" : "ghost"} 
+              className="w-full justify-start" 
+              asChild
+            >
               <Link href="/search">
                 <Search className="mr-2 h-4 w-4" />
                 Search & Explore
               </Link>
             </Button>
             
-            <Button variant="ghost" className="w-full justify-start" asChild>
+            <Button 
+              variant={isActive('/trending') ? "default" : "ghost"} 
+              className="w-full justify-start" 
+              asChild
+            >
               <Link href="/trending">
                 <TrendingUp className="mr-2 h-4 w-4" />
                 Trending
@@ -66,21 +97,33 @@ export function LeftSidebar({ isAuthenticated, user }: LeftSidebarProps) {
             
             {isAuthenticated && (
               <>
-                <Button variant="ghost" className="w-full justify-start" asChild>
+                <Button 
+                  variant={isActive('/profile') && !pathname.includes('saved') ? "default" : "ghost"} 
+                  className="w-full justify-start" 
+                  asChild
+                >
                   <Link href="/profile">
                     <User className="mr-2 h-4 w-4" />
                     Profile
                   </Link>
                 </Button>
                 
-                <Button variant="ghost" className="w-full justify-start" asChild>
+                <Button 
+                  variant={pathname.includes('saved') ? "default" : "ghost"} 
+                  className="w-full justify-start" 
+                  asChild
+                >
                   <Link href="/profile?tab=saved">
                     <Bookmark className="mr-2 h-4 w-4" />
                     Saved Memes
                   </Link>
                 </Button>
                 
-                <Button variant="ghost" className="w-full justify-start" asChild>
+                <Button 
+                  variant={isActive('/settings') ? "default" : "ghost"} 
+                  className="w-full justify-start" 
+                  asChild
+                >
                   <Link href="/settings">
                     <Settings className="mr-2 h-4 w-4" />
                     Settings
@@ -94,12 +137,15 @@ export function LeftSidebar({ isAuthenticated, user }: LeftSidebarProps) {
       
       <Card>
         <CardContent className="p-4">
-          <h3 className="font-medium mb-2">Categories</h3>
+          <h3 className="font-medium mb-2 flex items-center">
+            <Hash className="mr-2 h-4 w-4 text-primary" />
+            Categories
+          </h3>
           <div className="space-y-1">
-            {["Programming", "Reactions", "Animals", "Gaming", "Movies", "Wholesome"].map((category) => (
+            {categories.map((category) => (
               <Button 
                 key={category} 
-                variant="ghost" 
+                variant={isCategoryActive(category) ? "default" : "ghost"} 
                 size="sm"
                 className="w-full justify-start"
                 asChild
