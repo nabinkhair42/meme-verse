@@ -15,55 +15,62 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { leaderboardService } from "@/services/api";
 
+// Define interfaces for the data
+interface TopMeme {
+  id: string;
+  title: string;
+  url: string;
+  author: string;
+  category: string;
+  likes: number;
+}
+
+interface TopUser {
+  id: string;
+  username: string;
+  avatar: string;
+  likes: number;
+  memes: number;
+  topCategory: string;
+}
+
 export default function LeaderboardPage() {
   const dispatch = useDispatch<AppDispatch>();
   const { items } = useSelector((state: RootState) => state.memes);
   
   const [isLoading, setIsLoading] = useState(true);
   const [period, setPeriod] = useState("all-time");
-  const [topMemes, setTopMemes] = useState<any[]>([]);
-  const [topUsers, setTopUsers] = useState<any[]>([]);
+  const [topMemes, setTopMemes] = useState<TopMeme[]>([]);
+  const [topUsers, setTopUsers] = useState<TopUser[]>([]);
   const [error, setError] = useState<string | null>(null);
   
   // Fetch leaderboard data based on selected period
-  const fetchLeaderboardData = async () => {
+  const fetchLeaderboardData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     
     try {
       // Fetch top memes
       const memesData = await leaderboardService.getTopMemes(period);
-      setTopMemes(memesData);
+      if (Array.isArray(memesData)) {
+        setTopMemes(memesData);
+      } else if (memesData && memesData.data && Array.isArray(memesData.data)) {
+        setTopMemes(memesData.data);
+      } else {
+        console.error("Unexpected memes data format:", memesData);
+        throw new Error("Invalid memes data format");
+      }
       
       // Fetch top users
       const usersData = await leaderboardService.getTopUsers(period);
-      setTopUsers(usersData);
-    } catch (error) {
-      console.error("Error fetching leaderboard data:", error);
-      setError("Failed to load leaderboard data");
-      
-      // Fallback to local data if API fails
-      const sortedMemes = [...items].sort((a, b) => b.likes - a.likes).slice(0, 10);
-      setTopMemes(sortedMemes);
-    } finally {
-      setTimeout(() => {
-        setIsLoading(false);
-      }, 500);
-    }
-  };
-  
-  const fetchLeaderboardDataCallback = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      // Fetch top memes
-      const memesData = await leaderboardService.getTopMemes(period);
-      setTopMemes(memesData);
-      
-      // Fetch top users
-      const usersData = await leaderboardService.getTopUsers(period);
-      setTopUsers(usersData);
+      if (Array.isArray(usersData)) {
+        setTopUsers(usersData);
+      } else if (usersData && usersData.data && Array.isArray(usersData.data)) {
+        setTopUsers(usersData.data);
+      } else {
+        console.error("Unexpected users data format:", usersData);
+        throw new Error("Invalid users data format");
+      }
     } catch (error) {
       console.error("Error fetching leaderboard data:", error);
       setError("Failed to load leaderboard data");
@@ -79,8 +86,9 @@ export default function LeaderboardPage() {
   }, [period, items]);
   
   useEffect(() => {
-    fetchLeaderboardDataCallback();
-  }, [fetchLeaderboardDataCallback]);
+    fetchLeaderboardData();
+  }, [fetchLeaderboardData]);
+  
   // Animation variants
   const container = {
     hidden: { opacity: 0 },
@@ -209,6 +217,10 @@ export default function LeaderboardPage() {
                       </div>
                     ))}
                   </div>
+                ) : topMemes.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No memes found for this period</p>
+                  </div>
                 ) : (
                   <motion.div 
                     className="space-y-4"
@@ -287,6 +299,10 @@ export default function LeaderboardPage() {
                       </div>
                     ))}
                   </div>
+                ) : topUsers.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No creators found for this period</p>
+                  </div>
                 ) : (
                   <motion.div 
                     className="space-y-4"
@@ -306,8 +322,8 @@ export default function LeaderboardPage() {
                         
                         <div className="flex flex-1 items-center gap-4 min-w-0">
                           <Avatar>
-                            <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.avatar}`} />
-                            <AvatarFallback>{user.username[0]}</AvatarFallback>
+                            <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.avatar || user.username}`} />
+                            <AvatarFallback>{user.username?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
                           </Avatar>
                           
                           <div className="min-w-0 flex-1">
@@ -322,7 +338,7 @@ export default function LeaderboardPage() {
                               <span className="text-xs">•</span>
                               <span className="flex items-center">
                                 <Badge variant="secondary" className="text-xs">
-                                  {user.topCategory}
+                                  {user.topCategory || 'Various'}
                                 </Badge>
                               </span>
                             </div>

@@ -1040,6 +1040,13 @@ export const leaderboardService = {
   getTopMemes: async (period: string = "all-time") => {
     try {
       const response = await api.get(`/api/leaderboard/memes?period=${period}`);
+      
+      // Check if the response has the expected structure
+      if (response.data && response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      
+      // Return the data directly if it's already in the expected format
       return response.data;
     } catch (error) {
       console.error(`Error fetching top memes:`, error);
@@ -1051,6 +1058,13 @@ export const leaderboardService = {
   getTopUsers: async (period: string = "all-time") => {
     try {
       const response = await api.get(`/api/leaderboard/users?period=${period}`);
+      
+      // Check if the response has the expected structure
+      if (response.data && response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      
+      // Return the data directly if it's already in the expected format
       return response.data;
     } catch (error) {
       console.error(`Error fetching top users:`, error);
