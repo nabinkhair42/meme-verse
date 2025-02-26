@@ -142,15 +142,7 @@ export async function GET(request: NextRequest) {
         }
         
         return NextResponse.json(
-            successResponse({
-                memes: memesWithStatus,
-                pagination: {
-                    total,
-                    page,
-                    limit,
-                    totalPages: Math.ceil(total / limit)
-                }
-            }),
+            successResponse(memesWithStatus, "Memes fetched successfully", 200),
             { status: 200 }
         );
     } catch (error) {

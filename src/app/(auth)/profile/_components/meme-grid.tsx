@@ -42,7 +42,7 @@ export function MemeGrid({ memes }: MemeGridProps) {
             <Card className="overflow-hidden hover:shadow-md transition-shadow">
               <div className="relative aspect-video overflow-hidden bg-muted">
                 <Image
-                  src={meme.url}
+                  src={meme.imageUrl}
                   alt={meme.title}
                   fill
                   className="object-cover"
@@ -59,7 +59,7 @@ export function MemeGrid({ memes }: MemeGridProps) {
                     </div>
                     <div className="flex items-center gap-1">
                       <MessageCircle className="h-3 w-3" />
-                      <span>{meme.comments?.length || 0}</span>
+                      <span>{meme.commentCount || 0}</span>
                     </div>
                   </div>
                   <div>

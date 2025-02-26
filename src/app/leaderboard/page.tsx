@@ -77,7 +77,7 @@ export default function LeaderboardPage() {
       
       // Fallback to local data if API fails
       const sortedMemes = [...items].sort((a, b) => b.likes - a.likes).slice(0, 10);
-      setTopMemes(sortedMemes);
+      setTopMemes(sortedMemes as any);
     } finally {
       setTimeout(() => {
         setIsLoading(false);

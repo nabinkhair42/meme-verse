@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { errorResponse, successResponse } from "@/lib/apiResponse";
 import clientPromise from "@/lib/mongodb";
+import { NextRequest, NextResponse } from "next/server";
+import { ObjectId } from "mongodb";
 
 export async function GET(request: NextRequest) {
   try {
@@ -29,12 +31,16 @@ export async function GET(request: NextRequest) {
     
     // Aggregate to get top users based on their memes' likes
     const topUsers = await db.collection("memes").aggregate([
-      { $match: dateFilter },
+      { 
+        $match: { 
+          ...dateFilter,
+          userId: { $exists: true, $ne: null },
+        }
+      },
       { 
         $group: {
           _id: "$userId",
-          username: { $first: "$username" },
-          totalLikes: { $sum: "$likes" },
+          totalLikes: { $sum: { $ifNull: ["$likes", 0] } },
           memeCount: { $sum: 1 },
           categories: { $addToSet: "$category" }
         }
@@ -42,58 +48,69 @@ export async function GET(request: NextRequest) {
       {
         $lookup: {
           from: "users",
-          localField: "_id",
-          foreignField: "_id",
+          let: { userId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ["$_id", { $toObjectId: "$$userId" }]
+                }
+              }
+            }
+          ],
           as: "userDetails"
         }
       },
       {
-        $addFields: {
-          userDetails: { $arrayElemAt: ["$userDetails", 0] }
+        $unwind: {
+          path: "$userDetails",
+          preserveNullAndEmptyArrays: false
         }
       },
       { 
         $project: {
-          id: "$_id",
-          username: { 
-            $cond: [
-              { $eq: ["$username", null] }, 
-              { $ifNull: ["$userDetails.username", "Anonymous"] },
-              "$username"
-            ]
-          },
+          _id: "$userDetails._id",
+          username: "$userDetails.username",
           likes: "$totalLikes",
           memes: "$memeCount",
-          topCategory: { $arrayElemAt: ["$categories", 0] },
-          avatar: { 
-            $cond: [
-              { $eq: ["$username", null] }, 
-              { $ifNull: ["$userDetails.username", "$_id"] },
-              "$username"
-            ]
-          }
+          topCategory: { $ifNull: [{ $arrayElemAt: ["$categories", 0] }, "uncategorized"] },
+          avatar: { $ifNull: ["$userDetails.avatar", ""] },
+          bio: { $ifNull: ["$userDetails.bio", ""] },
+          joinDate: "$userDetails.joinDate"
         }
       },
       { $sort: { likes: -1 } },
       { $limit: limit }
     ]).toArray();
+
+    if (!topUsers.length) {
+      return NextResponse.json(
+        successResponse([], "No users found", 200),
+        { status: 200 }
+      );
+    }
     
-    // Format the response
+    // Format the response ensuring all fields are present
     const formattedUsers = topUsers.map(user => ({
-      id: user.id || user._id || "unknown",
-      username: user.username || 'Anonymous',
-      likes: user.likes || 0,
-      memes: user.memes || 0,
-      topCategory: user.topCategory || 'Uncategorized',
-      avatar: user.avatar || user.username || user.id || 'user' // For avatar generation
+      id: user._id.toString(),
+      username: user.username,
+      likes: user.likes,
+      memes: user.memes,
+      topCategory: user.topCategory,
+      avatar: user.avatar,
+      bio: user.bio,
+      joinDate: user.joinDate
     }));
     
-    return NextResponse.json(formattedUsers);
+    return NextResponse.json(
+      successResponse(formattedUsers, "Top users fetched successfully", 200),
+      { status: 200 }
+    );
   } catch (error) {
     console.error("Error fetching top users:", error);
     return NextResponse.json(
-      { error: "Failed to fetch top users" },
+      errorResponse("Failed to fetch top users", 500),
       { status: 500 }
     );
   }
-} 
+}
