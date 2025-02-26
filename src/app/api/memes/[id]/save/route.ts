@@ -33,7 +33,7 @@ export async function GET(
     const isSaved = await SavedMemeModel.hasSavedMeme(userId, memeId);
     
     return NextResponse.json(
-      successResponse({ saved: isSaved }),
+      successResponse({ saved: isSaved }, "Save status checked successfully", 200),
       { status: 200 }
     );
   } catch (error) {
@@ -74,7 +74,7 @@ export async function POST(
     const saved = await SavedMemeModel.saveMeme(userId, memeId);
     
     return NextResponse.json(
-      successResponse({ saved }),
+      successResponse({ saved }, "Save status updated successfully", 200),
       { status: 200 }
     );
   } catch (error) {

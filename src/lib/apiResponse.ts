@@ -8,14 +8,14 @@ export interface ApiResponse<T = any> {
 }
 
 // Helper functions to create consistent API responses
-export const successResponse = <T>(data: T, message = "Success", statusCode = 200): ApiResponse<T> => ({
+export const successResponse = <T>(data: T, message = "Success", statusCode: number): ApiResponse<T> => ({
   success: true,
   data,
   message,
   statusCode
 });
 
-export const errorResponse = (error: string, statusCode = 400): ApiResponse => ({
+export const errorResponse = (error: string, statusCode: number): ApiResponse => ({
   success: false,
   error,
   statusCode

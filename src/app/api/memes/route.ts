@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     });
     
     return NextResponse.json(
-      successResponse(result),
+      successResponse(result, "Memes fetched successfully", 200),
       { status: 200 }
     );
   } catch (error) {
@@ -50,9 +50,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/**
- * POST /api/memes - Create a new meme
- */
+
 export async function POST(request: NextRequest) {
   try {
     // Verify user is authenticated
@@ -94,7 +92,7 @@ export async function POST(request: NextRequest) {
     );
     
     return NextResponse.json(
-      successResponse(newMeme, "Meme created successfully"),
+      successResponse(newMeme, "Meme created successfully", 201),
       { status: 201 }
     );
   } catch (error) {

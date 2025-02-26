@@ -94,7 +94,7 @@ export default function ProfilePage() {
   
   if (isLoading) {
     return (
-      <div className="flex w-full justify-center py-8 ">
+      <div className="flex w-full justify-center py-8">
         <div className="max-w-7xl mx-auto">
           <Card>
             <CardContent className="p-6">
@@ -126,7 +126,7 @@ export default function ProfilePage() {
   
   if (!profile) {
     return (
-      <div className="flex w-full py-8 text-center">
+      <div className="max-w-7xl mx-auto py-8 text-center">
         <h1 className="text-2xl font-bold mb-4">Profile not found</h1>
         <p className="text-muted-foreground mb-4">We couldn't find your profile information.</p>
         <Button onClick={() => window.location.reload()}>Retry</Button>
@@ -144,7 +144,7 @@ export default function ProfilePage() {
   };
   
   return (
-    <div className="flex w-full py-8">
+    <div className="flex w-full justify-center py-8 px-4">
       <div className="max-w-7xl mx-auto">
         <Card className="mb-8">
           <CardContent className="p-6">

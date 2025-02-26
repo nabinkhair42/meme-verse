@@ -12,7 +12,7 @@ interface SavedMemeDocument {
  * SavedMeme Model - handles all database operations for saved memes
  */
 export class SavedMemeModel {
-  private static collection: string = 'saves';
+  static readonly collection: string = 'saves';
   
   /**
    * Save a meme for a user

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
+import { successResponse, errorResponse } from "@/lib/apiResponse";
+
 
 
 // Cache templates to avoid hitting the API too often
@@ -77,7 +79,8 @@ export async function GET(request: NextRequest) {
     }
   } catch (error) {
     return NextResponse.json(
-      { templates: [
+      successResponse(
+        { templates: [
         {
           id: "181913649",
           name: "Drake Hotline Bling",
@@ -102,7 +105,11 @@ export async function GET(request: NextRequest) {
           height: 800,
           box_count: 3
         }
-      ] }
+      ] },
+      "Templates fetched successfully",
+      200
+    ),
+      { status: 200 }
     );
   }
 } 

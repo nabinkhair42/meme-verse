@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
 import { verifyAuth } from "@/lib/auth";
+import { successResponse, errorResponse } from "@/lib/apiResponse";
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
     const db = client.db("meme-verse");
     
     // Build query
-    const query: any = { authorId: user.id };
+    const query: any = { authorId: user._id };
     
     // Filter by isGenerated flag if requested
     if (onlyGenerated) {
@@ -34,11 +35,14 @@ export async function GET(request: NextRequest) {
       .sort({ createdAt: -1 })
       .toArray();
     
-    return NextResponse.json(memes);
+    return NextResponse.json(
+      successResponse(memes, "User-generated memes fetched successfully", 200),
+      { status: 200 }
+    );
   } catch (error) {
     console.error("Error fetching user-generated memes:", error);
     return NextResponse.json(
-      { error: "Failed to fetch user-generated memes" },
+      errorResponse("Failed to fetch user-generated memes", 500),
       { status: 500 }
     );
   }
@@ -75,7 +79,7 @@ export async function POST(request: NextRequest) {
       description: description || "",
       tags: tags || [],
       author: user.username,
-      authorId: user.id,
+      authorId: user._id,
       createdAt: new Date().toISOString(),
       likes: 0,
       comments: [],
@@ -87,10 +91,13 @@ export async function POST(request: NextRequest) {
     await db.collection("memes").insertOne(newMeme);
     await db.collection("user-generated-memes").insertOne(newMeme);
     
-    return NextResponse.json(newMeme, { status: 201 });
+      return NextResponse.json(
+      successResponse(newMeme, "Meme created successfully", 201),
+      { status: 201 }
+    );
   } catch (error) {
     return NextResponse.json(
-      { error: (error as Error).message },
+      errorResponse("Failed to create meme", 500),
       { status: 500 }
     );
   }

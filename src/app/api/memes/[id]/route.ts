@@ -25,7 +25,7 @@ export async function GET(
     }
     
     return NextResponse.json(
-      successResponse(meme),
+      successResponse(meme, "Meme fetched successfully", 200),
       { status: 200 }
     );
   } catch (error) {
@@ -84,7 +84,7 @@ export async function PATCH(
     const updatedMeme = await memeModel.update(memeId, updateData);
     
     return NextResponse.json(
-      successResponse(updatedMeme, "Meme updated successfully"),
+      successResponse(updatedMeme, "Meme updated successfully", 200),
       { status: 200 }
     );
   } catch (error) {
@@ -147,7 +147,7 @@ export async function DELETE(
     }
     
     return NextResponse.json(
-      successResponse({ success: true }, "Meme deleted successfully"),
+      successResponse({ success: true }, "Meme deleted successfully", 200),
       { status: 200 }
     );
   } catch (error) {

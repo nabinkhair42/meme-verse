@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { verifyAuth } from "@/lib/auth";
+import { successResponse, errorResponse } from "@/lib/apiResponse";
+import { SavedMemeModel } from "@/models/SavedMeme";
 
 // GET /api/auth/profile/[id]/saved - Get memes saved by a specific user
 export async function GET(
@@ -9,31 +11,34 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = params;
+    const userId = (await params).id;
     const { searchParams } = new URL(request.url);
     
-    // Parse pagination parameters
-    const page = parseInt(searchParams.get("page") || "1", 10);
-    const limit = parseInt(searchParams.get("limit") || "10", 10);
+    // Parse pagination parameters with mutable page
+    let page = parseInt(searchParams.get("page") || "1", 10);
+    const limit = parseInt(searchParams.get("limit") || "9", 10);
     
     // Validate ObjectId
-    if (!ObjectId.isValid(id)) {
+    if (!ObjectId.isValid(userId)) {
       return NextResponse.json(
-        { error: "Invalid user ID" },
+        errorResponse("Invalid user ID", 400),
         { status: 400 }
       );
     }
     
     // Verify authentication for private data
     const currentUser = await verifyAuth(request);
-    const isOwnProfile = currentUser && currentUser._id && 
-      (currentUser._id.toString() === id || 
-       (typeof currentUser._id === 'string' && currentUser._id === id));
-    
-    // Only allow access to saved memes if it's the user's own profile
+    if (!currentUser || !currentUser._id) {
+      return NextResponse.json(
+        errorResponse("Unauthorized", 401),
+        { status: 401 }
+      );
+    }
+
+    const isOwnProfile = currentUser._id.toString() === userId;
     if (!isOwnProfile) {
       return NextResponse.json(
-        { error: "Unauthorized to view saved memes" },
+        errorResponse("Unauthorized to view saved memes", 403),
         { status: 403 }
       );
     }
@@ -41,67 +46,113 @@ export async function GET(
     const client = await clientPromise;
     const db = client.db("meme-verse");
     
-    // First, get the user's saved meme IDs from the saves collection
-    const savedMemes = await db.collection("saves").find(
-      { userId: id }
-    ).toArray();
+    // First get the saved meme IDs for the user
+    const savedMemeIds = await SavedMemeModel.getSavedMemes(userId);
     
-    // If user has no saved memes, return empty array
-    if (!savedMemes || savedMemes.length === 0) {
-      return NextResponse.json({
-        memes: [],
-        pagination: {
-          total: 0,
-          page,
-          limit,
-          totalPages: 0
-        }
-      });
+    if (!savedMemeIds.length) {
+      return NextResponse.json(
+        successResponse(
+          {
+            memes: [],
+            pagination: {
+              total: 0,
+              page,
+              limit,
+              totalPages: 0
+            }
+          },
+          "No saved memes found",
+          200
+        ),
+        { status: 200 }
+      );
+    }
+
+    // Convert saved meme IDs to ObjectIds
+    const memeObjectIds = savedMemeIds
+      .filter(id => ObjectId.isValid(id))
+      .map(id => new ObjectId(id));
+
+    // First check total count
+    const totalResult = await db.collection("memes").countDocuments({
+      _id: { $in: memeObjectIds }
+    });
+    
+    if (totalResult === 0) {
+      return NextResponse.json(
+        successResponse(
+          {
+            memes: [],
+            pagination: {
+              total: 0,
+              page,
+              limit,
+              totalPages: 0
+            }
+          },
+          "No saved memes found",
+          200
+        ),
+        { status: 200 }
+      );
     }
     
-    // Extract meme IDs from saved memes
-    const savedMemeIds = savedMemes
-      .filter(save => save.memeId && ObjectId.isValid(save.memeId))
-      .map(save => new ObjectId(save.memeId));
-    
     // Calculate pagination
-    const total = savedMemeIds.length;
+    const totalPages = Math.ceil(totalResult / limit);
+    
+    // Adjust page number if it exceeds total pages
+    if (page > totalPages) {
+      page = totalPages;
+    }
+    
     const skip = (page - 1) * limit;
-    const paginatedMemeIds = savedMemeIds.slice(skip, skip + limit);
     
-    // Get the actual meme data from the memes collection
-    const memes = await db.collection("memes")
-      .find({ _id: { $in: paginatedMemeIds } })
+    // Get memes with pagination
+    const memesResult = await db.collection("memes")
+      .find({
+        _id: { $in: memeObjectIds }
+      })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .toArray();
-    
+
     // Format memes for response
-    const formattedMemes = memes.map(meme => ({
+    const formattedMemes = memesResult.map(meme => ({
       id: meme._id.toString(),
-      title: meme.title,
+      title: meme.title || "",
       imageUrl: meme.imageUrl,
       description: meme.description || "",
       likes: meme.likes || 0,
       commentCount: meme.commentCount || 0,
-      category: meme.category || "Uncategorized",
-      createdAt: meme.createdAt,
+      category: meme.category || "Saved",
+      createdAt: meme.createdAt || new Date().toISOString(),
       author: meme.username || "Anonymous",
-      authorId: meme.userId
+      authorId: meme.userId?.toString(),
+      type: "saved"
     }));
     
-    return NextResponse.json({
-      memes: formattedMemes,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit)
-      }
-    });
+    return NextResponse.json(
+      successResponse(
+        {
+          memes: formattedMemes,
+          pagination: {
+            total: totalResult,
+            page,
+            limit,
+            totalPages
+          }
+        },
+        "Saved memes fetched successfully",
+        200
+      ),
+      { status: 200 }
+    );
     
   } catch (error) {
     console.error("Error fetching saved memes:", error);
     return NextResponse.json(
-      { error: "Failed to fetch saved memes" },
+      errorResponse("Failed to fetch saved memes", 500),
       { status: 500 }
     );
   }

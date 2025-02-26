@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
+import { errorResponse, successResponse } from "@/lib/apiResponse";
 
 // GET /api/auth/profile/[id] - Get user profile by ID
 export async function GET(
@@ -13,7 +14,7 @@ export async function GET(
     // Validate ObjectId
     if (!ObjectId.isValid(id)) {
       return NextResponse.json(
-        { error: "Invalid user ID" },
+        errorResponse("Invalid user ID", 400),
         { status: 400 }
       );
     }
@@ -29,8 +30,9 @@ export async function GET(
     
     if (!user) {
       return NextResponse.json(
-        { error: "User not found" },
+        errorResponse("User not found", 404),
         { status: 404 }
+
       );
     }
     
@@ -71,7 +73,7 @@ export async function GET(
   } catch (error) {
     console.error("Error fetching user profile:", error);
     return NextResponse.json(
-      { error: "Failed to fetch user profile" },
+      errorResponse("Failed to fetch user profile", 500),
       { status: 500 }
     );
   }
