@@ -141,6 +141,37 @@ export class CommentModel {
   }
   
   /**
+   * Get comments for a meme with pagination
+   */
+  async findByMemeIdWithPagination(
+    memeId: string, 
+    page: number = 1, 
+    limit: number = 10
+  ): Promise<{ comments: Comment[], total: number }> {
+    const client = await clientPromise;
+    const db = client.db('meme-verse');
+    
+    // Calculate skip value for pagination
+    const skip = (page - 1) * limit;
+    
+    // Get total count of comments for this meme
+    const total = await db.collection(this.collection).countDocuments({ memeId });
+    
+    // Get paginated comments
+    const comments = await db.collection(this.collection)
+      .find({ memeId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray();
+    
+    return {
+      comments: comments as unknown as Comment[],
+      total
+    };
+  }
+  
+  /**
    * Get comments by user ID
    */
   async findByUserId(userId: string): Promise<Comment[]> {

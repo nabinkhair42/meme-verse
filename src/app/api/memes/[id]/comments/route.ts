@@ -4,7 +4,7 @@ import { verifyAuth } from "@/lib/auth";
 import { successResponse, errorResponse } from "@/lib/apiResponse";
 
 /**
- * GET /api/memes/[id]/comments - Get comments for a meme
+ * GET /api/memes/[id]/comments - Get comments for a meme with pagination
  */
 export async function GET(
   request: NextRequest,
@@ -14,11 +14,31 @@ export async function GET(
     // IMPORTANT: Await the params object before accessing its properties
     const memeId = (await params).id;
     
-    // Get comments from database
-    const comments = await commentModel.findByMemeId(memeId);
+    // Get pagination parameters from query
+    const searchParams = request.nextUrl.searchParams;
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parseInt(searchParams.get('limit') || '10', 10);
+    
+    // Get comments from database with pagination
+    const { comments, total } = await commentModel.findByMemeIdWithPagination(
+      memeId,
+      page,
+      limit
+    );
+    
+    // Calculate total pages
+    const totalPages = Math.ceil(total / limit);
     
     return NextResponse.json(
-      successResponse(comments),
+      successResponse({
+        comments,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages
+        }
+      }),
       { status: 200 }
     );
   } catch (error) {

@@ -21,11 +21,18 @@ export interface Meme {
 
 export interface Comment {
   id: string;
-  text: string;
-  author: string;
-  authorId: string;
+  _id?: string;
+  text?: string;
+  content?: string;
+  author?: string;
+  username?: string;
+  authorId?: string;
+  userId?: string;
   authorAvatar?: string;
+  userAvatar?: string;
+  memeId?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface User {
@@ -623,13 +630,57 @@ export const memeService = {
   },
 
   // Get comments for a meme
-  getComments: async (id: string): Promise<Comment[]> => {
+  getComments: async (id: string, page = 1, limit = 10): Promise<{
+    comments: Comment[];
+    pagination?: {
+      page: number;
+      totalPages: number;
+      total: number;
+      limit: number;
+    }
+  }> => {
     try {
-      const response = await api.get(`/api/memes/${id}/comments`);
-      return response.data;
+      const response = await api.get(`/api/memes/${id}/comments`, {
+        params: { page, limit }
+      });
+      
+      // Check if the response has the expected structure
+      if (response.data && response.data.success && response.data.data) {
+        // If the API returns paginated data
+        if (response.data.data.comments && response.data.data.pagination) {
+          return {
+            comments: response.data.data.comments,
+            pagination: response.data.data.pagination
+          };
+        }
+        
+        // If the API returns just an array of comments
+        if (Array.isArray(response.data.data)) {
+          return {
+            comments: response.data.data,
+            pagination: {
+              page: 1,
+              totalPages: 1,
+              total: response.data.data.length,
+              limit: response.data.data.length
+            }
+          };
+        }
+      }
+      
+      // Fallback for unexpected response structure
+      return {
+        comments: Array.isArray(response.data) ? response.data : [],
+        pagination: {
+          page: 1,
+          totalPages: 1,
+          total: Array.isArray(response.data) ? response.data.length : 0,
+          limit: 10
+        }
+      };
     } catch (error) {
       console.error(`Error fetching comments for meme ${id}:`, error);
-      return [];
+      return { comments: [] };
     }
   },
   

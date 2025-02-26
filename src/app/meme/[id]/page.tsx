@@ -22,6 +22,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
+import { useInView } from "react-intersection-observer";
+import { useInfiniteQuery } from "@tanstack/react-query";
 
 // Define a local comment interface that matches the backend response
 interface CommentData {
@@ -55,11 +57,63 @@ export default function MemePage() {
   const [hasSaved, setHasSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [comments, setComments] = useState<CommentData[]>([]);
   
-  // Check if the current user has liked or saved this meme
-  const isLiked = likedMemes.includes(id as string);
-  const isSaved = savedMemes.includes(id as string);
+  // Set up intersection observer for infinite scrolling
+  const { ref, inView } = useInView({
+    threshold: 0.1,
+    rootMargin: "200px",
+  });
+  
+  // Fetch comments with infinite scrolling
+  const {
+    data: commentsData,
+    fetchNextPage: fetchNextComments,
+    hasNextPage: hasMoreComments,
+    isFetchingNextPage: isFetchingNextComments,
+    status: commentsStatus,
+    refetch: refetchComments
+  } = useInfiniteQuery({
+    queryKey: ['meme-comments', id],
+    queryFn: async ({ pageParam = 1 }) => {
+      console.log(`Fetching comments page ${pageParam} for meme ${id}`);
+      const result = await memeService.getComments(id as string, pageParam, 10);
+      return result;
+    },
+    getNextPageParam: (lastPage) => {
+      // Check if the response has pagination info
+      if (lastPage.pagination) {
+        const { page, totalPages } = lastPage.pagination;
+        return page < totalPages ? page + 1 : undefined;
+      }
+      return undefined;
+    },
+    initialPageParam: 1,
+    enabled: !!id && !isLoading,
+  });
+  
+  // Process all comments from all pages
+  const comments = commentsData?.pages.flatMap(page => 
+    page.comments.map(comment => ({
+      id: comment.id || comment._id,
+      _id: comment._id || comment.id,
+      memeId: comment.memeId,
+      userId: comment.userId,
+      username: comment.username || comment.author,
+      author: comment.username || comment.author,
+      userAvatar: comment.userAvatar,
+      content: comment.content || comment.text,
+      text: comment.content || comment.text,
+      createdAt: comment.createdAt,
+      updatedAt: comment.updatedAt
+    }))
+  ) || [];
+  
+  // Load more comments when the user scrolls to the bottom
+  useEffect(() => {
+    if (inView && hasMoreComments && !isFetchingNextComments) {
+      fetchNextComments();
+    }
+  }, [inView, fetchNextComments, hasMoreComments, isFetchingNextComments]);
   
   // Fetch meme data from API
   useEffect(() => {
@@ -71,34 +125,6 @@ export default function MemePage() {
       try {
         // Fetch meme data
         const data = await memeService.getMemeById(id as string);
-        
-        // Fetch comments separately
-        try {
-          const commentsData = await memeService.getComments(id as string);
-          console.log("Fetched comments:", commentsData);
-          
-          // Process comments to match our local interface
-          const processedComments = Array.isArray(commentsData) 
-            ? commentsData.map(comment => ({
-                id: comment.id || (comment as any)._id,
-                _id: (comment as any)._id || comment.id,
-                memeId: (comment as any).memeId,
-                userId: (comment as any).userId,
-                username: (comment as any).username || (comment as any).author,
-                author: (comment as any).username || (comment as any).author,
-                userAvatar: (comment as any).userAvatar,
-                content: (comment as any).content || (comment as any).text,
-                text: (comment as any).content || (comment as any).text,
-                createdAt: comment.createdAt,
-                updatedAt: (comment as any).updatedAt
-              }))
-            : [];
-          
-          setComments(processedComments);
-        } catch (commentError) {
-          console.error("Error fetching comments:", commentError);
-          setComments([]);
-        }
         
         // Ensure data has all required properties
         const processedData = {
@@ -250,8 +276,8 @@ export default function MemePage() {
         updatedAt: (newComment as any).updatedAt || new Date().toISOString()
       };
       
-      // Update comments state
-      setComments(prevComments => [...prevComments, processedComment]);
+      // Refetch comments to include the new one
+      refetchComments();
       
       // Clear input
       setCommentText("");
@@ -463,9 +489,11 @@ export default function MemePage() {
         
         <Separator className="my-8" />
         
-        {/* Comments Section with real-time updates */}
+        {/* Comments Section with infinite scrolling */}
         <div>
-          <h3 className="text-xl font-semibold mb-6">Comments ({comments.length})</h3>
+          <h3 className="text-xl font-semibold mb-6">
+            Comments ({commentsData?.pages[0]?.pagination?.total || comments.length})
+          </h3>
           
           <form onSubmit={handleAddComment} className="flex gap-4 mb-8">
             <Avatar>
@@ -496,7 +524,30 @@ export default function MemePage() {
           </form>
           
           <AnimatePresence>
-            {comments.length === 0 ? (
+            {commentsStatus === 'pending' ? (
+              <div className="space-y-6">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex gap-4">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-3 w-16" />
+                      </div>
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-2/3 mt-1" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : commentsStatus === 'error' ? (
+              <div className="text-center py-8 bg-muted/30 rounded-lg">
+                <p className="text-red-500 mb-2">Failed to load comments</p>
+                <Button onClick={() => refetchComments()}>
+                  Try Again
+                </Button>
+              </div>
+            ) : comments.length === 0 ? (
               <div className="text-center py-12 bg-muted/30 rounded-lg">
                 <MessageCircle className="h-8 w-8 mx-auto mb-4 text-muted-foreground" />
                 <h4 className="text-lg font-semibold mb-2">No comments yet</h4>
@@ -535,6 +586,20 @@ export default function MemePage() {
                     </div>
                   </motion.div>
                 ))}
+                
+                {/* Loading indicator for infinite scroll */}
+                <div ref={ref} className="py-4 flex justify-center">
+                  {isFetchingNextComments && (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      <p className="text-sm">Loading more comments...</p>
+                    </div>
+                  )}
+                  
+                  {!hasMoreComments && comments.length > 0 && (
+                    <p className="text-sm text-muted-foreground">End of comments</p>
+                  )}
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
