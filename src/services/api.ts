@@ -1,8 +1,14 @@
 import { ApiResponse } from "@/lib/apiResponse";
 import axios from "axios";
 import { toast } from "sonner";
-import { GenerateMemeInput, GenerateMemeResponse } from "@/types/meme";
-import type { MemeTemplate } from "@/types/meme";
+import { 
+  GenerateMemeInput, 
+  GenerateMemeResponse, 
+  Meme, 
+  MemeTemplate,
+  Comment,
+  PaginatedMemes 
+} from "@/types/meme";
 
 const IMGBB_API_KEY = process.env.NEXT_PUBLIC_IMGBB_API_KEY;
 
@@ -385,16 +391,15 @@ export const imgbbService = {
 // Internal API services for our MongoDB backend
 export const memeService = {
   // Get memes with pagination and filters
-  getMemes: async ({ page = 1, limit = 10, category = "", sort = "latest" } = {}): Promise<PaginatedResponse<Meme>> => {
+  getMemes: async ({ 
+    page = 1, 
+    limit = 10, 
+    category = "", 
+    sort = "latest" 
+  } = {}): Promise<PaginatedResponse<Meme>> => {
     try {
-      // Use the new feed API
       const response = await api.get(`/api/feed`, {
-        params: {
-          page,
-          limit,
-          category,
-          sort
-        }
+        params: { page, limit, category, sort }
       });
 
       if (!response.data.success) {
@@ -413,45 +418,37 @@ export const memeService = {
     try {
       const response = await api.get(`/api/memes/${id}`);
       
-      // Map the API response to the expected format
-      const apiResponse = response.data;
-      
-      // Check if the response has the expected structure
-      if (apiResponse && apiResponse.success && apiResponse.data) {
-        const meme = apiResponse.data;
-        return {
-          id: meme._id || meme.id, // Use _id as id if available
-          title: meme.title,
-          description: meme.description || '',
-          url: meme.imageUrl || meme.url, // Use imageUrl as url if available
-          category: meme.category || 'Other',
-          author: meme.username || meme.author || 'Unknown',
-          authorId: meme.userId || meme.authorId || '',
-          createdAt: meme.createdAt,
-          likes: meme.likes || 0,
-          comments: meme.comments || [],
-          tags: meme.tags || []
-        };
+      if (!response.data.success) {
+        throw new Error(response.data.error || "Failed to fetch meme");
       }
-      
-      // Fallback to the original response if it doesn't match the expected structure
-      return response.data;
+
+      const meme = response.data.data;
+      return {
+        _id: meme._id || meme.id || id,
+        id: meme.id || meme._id || id,
+        title: meme.title || 'Untitled Meme',
+        imageUrl: meme.imageUrl || meme.url || '',
+        url: meme.url || meme.imageUrl || '',
+        description: meme.description || '',
+        userId: meme.userId || 'anonymous',
+        username: meme.username || meme.author || 'Anonymous',
+        author: meme.author || meme.username || 'Anonymous',
+        userAvatar: meme.userAvatar || '',
+        authorId: meme.authorId || meme.userId || 'anonymous',
+        createdAt: meme.createdAt || new Date().toISOString(),
+        updatedAt: meme.updatedAt || meme.createdAt || new Date().toISOString(),
+        likes: typeof meme.likes === 'number' ? meme.likes : 0,
+        commentCount: typeof meme.commentCount === 'number' ? meme.commentCount : 0,
+        comments: Array.isArray(meme.comments) ? meme.comments : [],
+        category: meme.category || 'Other',
+        tags: Array.isArray(meme.tags) ? meme.tags : [],
+        type: meme.type || 'uploaded',
+        isLiked: !!meme.isLiked,
+        isSaved: !!meme.isSaved
+      };
     } catch (error) {
       console.error(`Error fetching meme ${id}:`, error);
-      // Return fallback data for demo purposes
-      return {
-        id,
-        title: "Fallback Meme",
-        description: "This meme couldn't be loaded from the server",
-        url: "https://i.imgflip.com/7rybvh.jpg", // Generic fallback image
-        author: "MemeVerse User",
-        authorId: "unknown",
-        createdAt: new Date().toISOString(),
-        likes: 0,
-        comments: [],
-        tags: ["error", "fallback"],
-        category: "Other"
-      };
+      throw error;
     }
   },
 
@@ -512,7 +509,7 @@ export const memeService = {
   },
 
   // Like a meme
-  likeMeme: async (memeId: string): Promise<{ liked: boolean; likes: number }> => {
+  likeMeme: async (memeId: string, liked: boolean, userId: string): Promise<{ liked: boolean; likes: number }> => {
     try {
       const response = await api.post<ApiResponse>(`/api/memes/${memeId}/like`);
       
@@ -530,12 +527,6 @@ export const memeService = {
   // Check if user has liked a meme
   checkLikeStatus: async (memeId: string): Promise<{ liked: boolean }> => {
     try {
-      // Throttle requests to prevent spamming
-      const cacheKey = `like-${memeId}`;
-      if (!throttleRequest(cacheKey)) {
-        return { liked: false };
-      }
-      
       const response = await api.get<ApiResponse>(`/api/memes/${memeId}/like`);
       
       if (!response.data.success) {
@@ -545,35 +536,11 @@ export const memeService = {
       return response.data.data;
     } catch (error: any) {
       console.error("Error checking like status:", error);
-      // Return default value on error instead of rethrowing
       return { liked: false };
     }
   },
 
-  // Check if user has saved a meme
-  checkSaveStatus: async (memeId: string): Promise<{ saved: boolean }> => {
-    try {
-      // Throttle requests to prevent spamming
-      const cacheKey = `save-${memeId}`;
-      if (!throttleRequest(cacheKey)) {
-        return { saved: false };
-      }
-      
-      const response = await api.get<ApiResponse>(`/api/memes/${memeId}/save`);
-      
-      if (!response.data.success) {
-        throw new Error(response.data.error || "Failed to check save status");
-      }
-      
-      return response.data.data;
-    } catch (error: any) {
-      console.error("Error checking save status:", error);
-      // Return default value on error instead of rethrowing
-      return { saved: false };
-    }
-  },
-
-  // Toggle save on a meme
+  // Save a meme
   saveMeme: async (memeId: string): Promise<{ saved: boolean }> => {
     try {
       const response = await api.post<ApiResponse>(`/api/memes/${memeId}/save`);
@@ -586,6 +553,22 @@ export const memeService = {
     } catch (error: any) {
       console.error("Error saving meme:", error);
       throw error;
+    }
+  },
+
+  // Check if user has saved a meme
+  checkSaveStatus: async (memeId: string): Promise<{ saved: boolean }> => {
+    try {
+      const response = await api.get<ApiResponse>(`/api/memes/${memeId}/save`);
+      
+      if (!response.data.success) {
+        throw new Error(response.data.error || "Failed to check save status");
+      }
+      
+      return response.data.data;
+    } catch (error: any) {
+      console.error("Error checking save status:", error);
+      return { saved: false };
     }
   },
 
@@ -604,43 +587,52 @@ export const memeService = {
         params: { page, limit }
       });
       
-      // Check if the response has the expected structure
-      if (response.data && response.data.success && response.data.data) {
-        // If the API returns paginated data
-        if (response.data.data.comments && response.data.data.pagination) {
-          return {
-            comments: response.data.data.comments,
-            pagination: response.data.data.pagination
-          };
-        }
-        
-        // If the API returns just an array of comments
-        if (Array.isArray(response.data.data)) {
-          return {
-            comments: response.data.data,
-            pagination: {
-              page: 1,
-              totalPages: 1,
-              total: response.data.data.length,
-              limit: response.data.data.length
-            }
-          };
-        }
+      if (!response.data.success) {
+        throw new Error(response.data.error || "Failed to fetch comments");
       }
-      
-      // Fallback for unexpected response structure
+
+      // Process comments to ensure consistent format
+      const comments = (Array.isArray(response.data.data.comments) 
+        ? response.data.data.comments 
+        : Array.isArray(response.data.data) 
+          ? response.data.data 
+          : []
+      ).map((comment: any) => ({
+        _id: comment._id || comment.id || `comment-${Date.now()}`,
+        id: comment.id || comment._id || `comment-${Date.now()}`,
+        memeId: comment.memeId || id,
+        userId: comment.userId || 'anonymous',
+        username: comment.username || comment.author || 'Anonymous',
+        author: comment.author || comment.username || 'Anonymous',
+        userAvatar: comment.userAvatar || '',
+        content: comment.content || comment.text || '',
+        text: comment.text || comment.content || '',
+        createdAt: comment.createdAt || new Date().toISOString(),
+        updatedAt: comment.updatedAt || comment.createdAt || new Date().toISOString()
+      }));
+
+      const pagination = response.data.data.pagination || {
+        page: 1,
+        totalPages: 1,
+        total: comments.length,
+        limit
+      };
+
       return {
-        comments: Array.isArray(response.data) ? response.data : [],
-        pagination: {
-          page: 1,
-          totalPages: 1,
-          total: Array.isArray(response.data) ? response.data.length : 0,
-          limit: 10
-        }
+        comments,
+        pagination
       };
     } catch (error) {
       console.error(`Error fetching comments for meme ${id}:`, error);
-      return { comments: [] };
+      return { 
+        comments: [],
+        pagination: {
+          page: 1,
+          totalPages: 1,
+          total: 0,
+          limit
+        }
+      };
     }
   },
   
@@ -649,13 +641,24 @@ export const memeService = {
     try {
       const response = await api.post(`/api/memes/${id}/comments`, { text });
       
-      // Check if the response has the expected structure
-      if (response.data && response.data.success && response.data.data) {
-        return response.data.data;
+      if (!response.data.success) {
+        throw new Error(response.data.error || "Failed to add comment");
       }
-      
-      // Fallback to the original response if it doesn't match the expected structure
-      return response.data;
+
+      const comment = response.data.data;
+      return {
+        _id: comment._id || comment.id || `comment-${Date.now()}`,
+        id: comment.id || comment._id || `comment-${Date.now()}`,
+        memeId: comment.memeId || id,
+        userId: comment.userId || 'anonymous',
+        username: comment.username || comment.author || 'Anonymous',
+        author: comment.author || comment.username || 'Anonymous',
+        userAvatar: comment.userAvatar || '',
+        content: comment.content || text || '',
+        text: comment.text || text || '',
+        createdAt: comment.createdAt || new Date().toISOString(),
+        updatedAt: comment.updatedAt || new Date().toISOString()
+      };
     } catch (error) {
       console.error(`Error adding comment to meme ${id}:`, error);
       throw error;

@@ -2,23 +2,46 @@
  * Meme interface - represents a meme in the system
  */
 export interface Meme {
-  _id?: string;
+  _id: string;
+  id?: string;
   title: string;
-  description?: string;
   imageUrl: string;
+  url?: string;
+  description?: string;
   userId: string;
   username: string;
+  author?: string;
   userAvatar?: string;
+  authorId?: string;
   createdAt: Date | string;
   updatedAt: Date | string;
   likes: number;
   commentCount: number;
-  tags?: string[];
+  comments?: Comment[];
   category?: string;
+  tags?: string[];
   type: 'generated' | 'uploaded';
   templateId?: string;
   templateUrl?: string;
-  textElements?: TextElement[];
+  isLiked?: boolean;
+  isSaved?: boolean;
+}
+
+/**
+ * Comment interface - represents a comment on a meme
+ */
+export interface Comment {
+  _id?: string;
+  id?: string;
+  memeId: string;
+  userId: string;
+  username: string;
+  author?: string;
+  userAvatar?: string;
+  content: string;
+  text?: string;
+  createdAt: Date | string;
+  updatedAt?: Date | string;
 }
 
 /**

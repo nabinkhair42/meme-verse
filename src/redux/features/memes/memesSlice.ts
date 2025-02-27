@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
-
+import {Meme} from "@/types/meme"
 // Define types
 export interface Comment {
   id: string;
@@ -8,25 +8,11 @@ export interface Comment {
   createdAt: string;
 }
 
-export interface Meme {
-  id: string;
-  title: string;
-  description?: string;
-  imageUrl: string;
-  category: string;
-  tags?: string[];
-  author: string;
-  authorId?: string;
-  userAvatar?: string;
-  createdAt: string;
-  updatedAt?: string;
-  likes: number;
-  commentCount: number;
-  type?: 'generated' | 'uploaded';
-  isGenerated?: boolean;
-  isPublic?: boolean;
-  templateId?: string | null;
-  templateUrl?: string | null;
+// Extended Meme interface to handle both _id and id properties
+export interface Meme extends MemeType {
+  id?: string; // Add id property for compatibility with components
+  author?: string; // Add author property for compatibility with components
+  authorId?: string; // Add authorId property for compatibility with components
 }
 
 interface MemesState {
@@ -64,122 +50,116 @@ export const MEME_TEMPLATES = [
 // Sample memes for initial state
 const initialMemes: Meme[] = [
   {
-    id: "1",
+    _id: "1",
+    id: "1", // Add id for compatibility
     title: "When the code works on the first try",
     description: "That rare moment when everything just works",
     imageUrl: "https://i.imgflip.com/7ry9vh.jpg",
-    category: "Programming",
-    author: "CodeMaster",
+    category: ["Programming"],
     createdAt: "2023-01-15T09:24:00Z",
     likes: 543,
     commentCount: 0,
-    tags: ["programming", "coding", "success"]
+    tags: ["programming", "coding", "success"],
+    userId: "",
+    username: "",
+    author: "Anonymous", // Add author for compatibility
+    updatedAt: "",
+    type: "generated"
   },
   {
-    id: "2",
+    _id: "2",
+    id: "2", // Add id for compatibility
     title: "Frontend vs Backend",
     description: "The eternal struggle between what users see and what actually happens",
     imageUrl: "https://i.imgflip.com/6yvpkj.jpg",
-    category: "Programming",
-    author: "FullStackDev",
+    category: ["Programming"],
     createdAt: "2023-01-18T14:35:00Z",
     likes: 921,
     commentCount: 0,
-    tags: ["programming", "frontend", "backend"]
+    tags: ["programming", "frontend", "backend"],
+    userId: "",
+    username: "",
+    author: "Anonymous", // Add author for compatibility
+    updatedAt: "",
+    type: "generated"
   },
   {
-    id: "3",
+    _id: "3",
+    id: "3", // Add id for compatibility
     title: "When the cat knocks over your water",
     description: "Every cat owner knows this feeling",
     imageUrl: "https://i.imgflip.com/7q1sxg.jpg",
-    category: "Animals",
-    author: "CatLover",
+    category: ["Reactions"],
     createdAt: "2023-01-20T08:12:00Z",
     likes: 782,
     commentCount: 0,
-    tags: ["cats", "pets", "funny"]
+    tags: ["cats", "pets", "funny"],
+    userId: "",
+    username: "",
+    author: "Anonymous", // Add author for compatibility
+    updatedAt: "",
+    type: "generated"
   },
   {
-    id: "4",
+    _id: "4",
+    id: "4", // Add id for compatibility
     title: "Monday morning feelings",
     description: "That moment when the alarm goes off",
     imageUrl: "https://i.imgflip.com/76j59w.jpg",
-    category: "Reactions",
-    author: "WeekendLover",
+    category: ["Reactions"],
     createdAt: "2023-01-23T07:30:00Z",
     likes: 1032,
     commentCount: 0,
-    tags: ["monday", "morning", "work"]
+    tags: ["monday", "morning", "work"],
+    userId: "",
+    username: "",
+    author: "Anonymous", // Add author for compatibility
+    updatedAt: "",
+    type: "generated"
   },
   {
-    id: "5",
+    _id: "5",
+    id: "5", // Add id for compatibility
     title: "Debugging be like",
     description: "When you've been staring at the same code for hours",
     imageUrl: "https://i.imgflip.com/7slwsi.jpg",
-    category: "Programming",
-    author: "BugFixer",
+    category: ["Programming"],
     createdAt: "2023-01-25T16:20:00Z",
     likes: 876,
     commentCount: 0,
-    tags: ["programming", "debugging", "coding"]
+    tags: ["programming", "debugging", "coding"],
+    userId: "",
+    username: "",
+    author: "Anonymous", // Add author for compatibility
+    updatedAt: "",
+    type: "generated"
   },
   {
-    id: "6",
+    _id: "6",
+    id: "6", // Add id for compatibility
     title: "When someone uses light mode",
     description: "Dark mode users be like",
     imageUrl: "https://i.imgflip.com/6o7hks.jpg",
-    category: "Programming",
-    author: "DarkThemeFan",
+    category: ["Programming"],
     createdAt: "2023-01-28T20:15:00Z",
     likes: 654,
     commentCount: 0,
-    tags: ["darkmode", "programming", "lightmode"]
+    tags: ["darkmode", "programming", "lightmode"],
+    userId: "",
+    username: "",
+    author: "Anonymous", // Add author for compatibility
+    updatedAt: "",
+    type: "generated"
   }
 ];
 
 // Async thunks for API calls
-export const fetchTrendingMemes = createAsyncThunk(
-  'memes/fetchTrending',
-  async (_, { rejectWithValue }) => {
-    try {
-      // In a real app, this would be an API call
-      // For demo purposes, we'll just return some of our memes
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Sort by likes to get "trending" memes
-      return initialMemes.sort((a, b) => b.likes - a.likes);
-    } catch (error) {
-      return rejectWithValue('Failed to fetch trending memes');
-    }
-  }
-);
-
-export const fetchMemesByCategory = createAsyncThunk(
-  'memes/fetchByCategory',
-  async (category: string, { rejectWithValue }) => {
-    try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      if (category === 'all') {
-        return initialMemes;
-      }
-      
-      return initialMemes.filter(meme => 
-        meme.category.toLowerCase() === category.toLowerCase()
-      );
-    } catch (error) {
-      return rejectWithValue('Failed to fetch memes by category');
-    }
-  }
-);
 
 // Create the slice
 const memesSlice = createSlice({
   name: 'memes',
   initialState: {
-    items: [],
+    items: initialMemes, // Use initialMemes to populate the initial state
     trending: [],
     status: 'idle',
     error: null
@@ -187,12 +167,20 @@ const memesSlice = createSlice({
   reducers: {
     // Add a new meme
     addMeme: (state, action: PayloadAction<Meme>) => {
-      state.items.unshift(action.payload);
+      // Ensure both id and _id are set for compatibility
+      const meme = action.payload;
+      if (meme._id && !meme.id) meme.id = meme._id;
+      if (meme.id && !meme._id) meme._id = meme.id;
+      if (meme.username && !meme.author) meme.author = meme.username;
+      if (meme.author && !meme.username) meme.username = meme.author;
+      
+      state.items.unshift(meme);
     },
     
     // Like a meme
     likeMeme: (state, action: PayloadAction<string>) => {
-      const meme = state.items.find(m => m.id === action.payload);
+      const memeId = action.payload;
+      const meme = state.items.find(m => m._id === memeId || m.id === memeId);
       if (meme) {
         meme.likes += 1;
       }
@@ -200,7 +188,8 @@ const memesSlice = createSlice({
     
     // Unlike a meme
     unlikeMeme: (state, action: PayloadAction<string>) => {
-      const meme = state.items.find(m => m.id === action.payload);
+      const memeId = action.payload;
+      const meme = state.items.find(m => m._id === memeId || m.id === memeId);
       if (meme && meme.likes > 0) {
         meme.likes -= 1;
       }
@@ -209,41 +198,13 @@ const memesSlice = createSlice({
     // Add a comment to a meme
     addComment: (state, action: PayloadAction<{ memeId: string, comment: Comment }>) => {
       const { memeId, comment } = action.payload;
-      const meme = state.items.find(m => m.id === memeId);
+      const meme = state.items.find(m => m._id === memeId || m.id === memeId);
       if (meme) {
         meme.commentCount += 1;
       }
     }
   },
-  extraReducers: (builder) => {
-    builder
-      // Handle fetchTrendingMemes
-      .addCase(fetchTrendingMemes.pending, (state) => {
-        state.status = 'loading';
-      })
-      .addCase(fetchTrendingMemes.fulfilled, (state, action) => {
-        state.status = 'succeeded';
-        state.trending = action.payload;
-      })
-      .addCase(fetchTrendingMemes.rejected, (state, action) => {
-        state.status = 'failed';
-        state.error = action.payload as string;
-      })
-      
-      // Handle fetchMemesByCategory
-      .addCase(fetchMemesByCategory.pending, (state) => {
-        state.status = 'loading';
-      })
-      .addCase(fetchMemesByCategory.fulfilled, (state, action) => {
-        state.status = 'succeeded';
-        state.items = action.payload;
-      })
-      .addCase(fetchMemesByCategory.rejected, (state, action) => {
-        state.status = 'failed';
-        state.error = action.payload as string;
-      });
-  }
 });
 
 export const { addMeme, likeMeme, unlikeMeme, addComment } = memesSlice.actions;
-export default memesSlice.reducer; 
+export default memesSlice.reducer;
