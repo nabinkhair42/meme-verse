@@ -59,7 +59,7 @@ export function MemeCard({ meme, isLiked, isSaved, ...props }: MemeCardProps) {
       likeChecked.current = true;
       
       // Check cache first
-      if (globalLikeCache.has(meme.id)) {
+      if (globalLikeCache.has(meme._id)) {
         setLiked(globalLikeCache.get(meme.id) || false);
         return;
       }

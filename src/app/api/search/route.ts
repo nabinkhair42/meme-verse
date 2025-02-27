@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
       isLiked: likedMemes.includes(meme._id.toString()),
       isSaved: savedMemes.includes(meme._id.toString())
     }));
-    
+    console.log("ALL MEMES", memesWithStatus)
     return NextResponse.json(
       successResponse({
         memes: memesWithStatus,

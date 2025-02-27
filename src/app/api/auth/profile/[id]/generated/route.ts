@@ -53,7 +53,6 @@ export async function GET(
     
     // First check if user has any generated memes
     const totalResult = await db.collection("memes").countDocuments(query);
-    
     if (totalResult === 0) {
       return NextResponse.json(
         successResponse(
@@ -95,7 +94,7 @@ export async function GET(
     const formattedMemes = memesResult.map(meme => ({
       id: meme._id.toString(),
       title: meme.title || "",
-      url: meme.url, // Changed from imageUrl to url to match the schema
+      imageUrl: meme.url, 
       description: meme.description || "",
       likes: meme.likes || 0,
       commentCount: meme.commentCount || 0,

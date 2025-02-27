@@ -10,9 +10,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Settings, Check, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Settings, Check, X, Calendar, Heart, ImageIcon, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { userService } from "@/services/api";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 interface ProfileData {
   username: string;
@@ -35,6 +38,7 @@ export function ProfileHeader({ userId, profileData, isLoading, stats }: Profile
   const dispatch = useDispatch<AppDispatch>();
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<ProfileData>(profileData);
+  const [isSaving, setIsSaving] = useState(false);
   
   const handleEditProfile = () => {
     setEditData(profileData);
@@ -47,6 +51,12 @@ export function ProfileHeader({ userId, profileData, isLoading, stats }: Profile
   };
   
   const handleSaveProfile = async () => {
+    if (!editData.username.trim()) {
+      toast.error("Username is required");
+      return;
+    }
+    
+    setIsSaving(true);
     try {
       await userService.updateProfile(userId, editData);
       dispatch(updateProfile(editData));
@@ -55,6 +65,8 @@ export function ProfileHeader({ userId, profileData, isLoading, stats }: Profile
     } catch (error) {
       console.error("Error updating profile:", error);
       toast.error("Failed to update profile");
+    } finally {
+      setIsSaving(false);
     }
   };
   
@@ -66,103 +78,177 @@ export function ProfileHeader({ userId, profileData, isLoading, stats }: Profile
     }));
   };
   
+  const renderSkeleton = () => (
+    <div className="animate-pulse space-y-4">
+      <div className="flex items-center gap-4">
+        <Skeleton className="h-24 w-24 rounded-full" />
+        <div className="space-y-2 flex-1">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-32" />
+        </div>
+      </div>
+      <Skeleton className="h-20 w-full" />
+      <div className="flex gap-4">
+        <Skeleton className="h-8 w-24" />
+        <Skeleton className="h-8 w-24" />
+        <Skeleton className="h-8 w-24" />
+      </div>
+    </div>
+  );
+  
   return (
-    <Card className="mb-8">
-      <CardContent className="pt-6">
-        <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+    <Card className="border-border/40">
+      <CardContent className="p-6">
+        <AnimatePresence mode="wait">
           {isLoading ? (
-            <Skeleton className="h-24 w-24 rounded-full" />
-          ) : (
-            <Avatar className="h-24 w-24 border-4 border-background">
-              <AvatarImage src={profileData.avatar} />
-              <AvatarFallback>{profileData.username?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
-            </Avatar>
-          )}
-          
-          <div className="flex-1 text-center md:text-left">
-            {isLoading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-8 w-48 mx-auto md:mx-0" />
-                <Skeleton className="h-4 w-32 mx-auto md:mx-0" />
-                <Skeleton className="h-4 w-64 mx-auto md:mx-0" />
-              </div>
-            ) : isEditing ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Username</label>
-                  <Input 
-                    name="username"
-                    value={editData.username}
-                    onChange={handleInputChange}
-                    className="max-w-md"
-                  />
-                </div>
+            <motion.div
+              key="skeleton"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              {renderSkeleton()}
+            </motion.div>
+          ) : isEditing ? (
+            <motion.div
+              key="edit-form"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              <div className="flex items-start gap-6">
+                <Avatar className="h-24 w-24 ring-2 ring-background">
+                  <AvatarImage src={editData.avatar} />
+                  <AvatarFallback className="bg-primary/10 text-primary text-xl">
+                    {editData.username?.[0]?.toUpperCase() || 'U'}
+                  </AvatarFallback>
+                </Avatar>
                 
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Bio</label>
-                  <Textarea 
+                <div className="flex-1 space-y-4">
+                  <div>
+                    <Input
+                      name="username"
+                      value={editData.username}
+                      onChange={handleInputChange}
+                      placeholder="Username"
+                      className="max-w-md font-medium text-lg"
+                    />
+                    <Input
+                      name="avatar"
+                      value={editData.avatar}
+                      onChange={handleInputChange}
+                      placeholder="Avatar URL"
+                      className="max-w-md mt-2"
+                    />
+                  </div>
+                  
+                  <Textarea
                     name="bio"
                     value={editData.bio}
                     onChange={handleInputChange}
-                    className="max-w-md"
-                    rows={3}
+                    placeholder="Write something about yourself..."
+                    className="resize-none h-24"
                   />
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Avatar URL</label>
-                  <Input 
-                    name="avatar"
-                    value={editData.avatar}
-                    onChange={handleInputChange}
-                    className="max-w-md"
-                    placeholder="https://example.com/avatar.jpg"
-                  />
-                </div>
-                
-                <div className="flex gap-2">
-                  <Button onClick={handleSaveProfile} className="flex items-center gap-1">
-                    <Check className="h-4 w-4" />
-                    Save Changes
-                  </Button>
-                  <Button variant="outline" onClick={handleCancelEdit} className="flex items-center gap-1">
-                    <X className="h-4 w-4" />
-                    Cancel
-                  </Button>
+                  
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleSaveProfile}
+                      disabled={isSaving}
+                      className="transition-all"
+                    >
+                      {isSaving ? (
+                        <>
+                          <motion.div
+                            className="mr-2 h-4 w-4"
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          >
+                            ⭮
+                          </motion.div>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Check className="h-4 w-4 mr-2" />
+                          Save Changes
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleCancelEdit}
+                      disabled={isSaving}
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Cancel
+                    </Button>
+                  </div>
                 </div>
               </div>
-            ) : (
-              <>
-                <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-                  <div>
-                    <h1 className="text-2xl font-bold">{profileData.username}</h1>
-                    <p className="text-muted-foreground">@{profileData.username?.toLowerCase()}</p>
-                  </div>
-                  <Button variant="outline" className="flex items-center gap-2" onClick={handleEditProfile}>
-                    <Settings className="h-4 w-4" />
-                    Edit Profile
-                  </Button>
-                </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="profile-view"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="space-y-6"
+            >
+              <div className="flex flex-col md:flex-row md:items-start gap-6">
+                <motion.div
+                  initial={{ scale: 0.9 }}
+                  animate={{ scale: 1 }}
+                  className="relative group"
+                >
+                  <Avatar className="h-24 w-24 ring-2 ring-background shadow-lg">
+                    <AvatarImage src={profileData.avatar} />
+                    <AvatarFallback className="bg-primary/10 text-primary text-xl">
+                      {profileData.username?.[0]?.toUpperCase() || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                </motion.div>
                 
-                <p className="mt-2 mb-4">
-                  {profileData.bio || "No bio yet."}
-                </p>
-                
-                <div className="flex flex-wrap justify-center md:justify-start gap-4 text-sm">
-                  <div>
-                    <span className="font-bold">{stats.memesCount}</span> memes
+                <div className="flex-1">
+                  <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
+                    <div>
+                      <h1 className="text-2xl font-bold">{profileData.username}</h1>
+                      <p className="text-muted-foreground">@{profileData.username?.toLowerCase()}</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleEditProfile}
+                      className="md:ml-auto group transition-colors hover:bg-primary/5"
+                    >
+                      <Settings className="h-4 w-4 mr-2 transition-transform group-hover:rotate-180" />
+                      Edit Profile
+                    </Button>
                   </div>
-                  <div>
-                    <span className="font-bold">{stats.likesCount}</span> likes received
-                  </div>
-                  <div>
-                    <span className="font-bold">{stats.commentsCount}</span> comments
+                  
+                  <p className="text-muted-foreground mb-6">
+                    {profileData.bio || "No bio yet."}
+                  </p>
+                  
+                  <div className="flex flex-wrap gap-6">
+                    <Badge variant="secondary" className="px-2 py-1 flex items-center gap-1">
+                      <ImageIcon className="h-4 w-4" />
+                      <span className="font-semibold">{stats.memesCount}</span> memes
+                    </Badge>
+                    <Badge variant="secondary" className="px-2 py-1 flex items-center gap-1">
+                      <Heart className="h-4 w-4" />
+                      <span className="font-semibold">{stats.likesCount}</span> likes
+                    </Badge>
+                    <Badge variant="secondary" className="px-2 py-1 flex items-center gap-1">
+                      <MessageSquare className="h-4 w-4" />
+                      <span className="font-semibold">{stats.commentsCount}</span> comments
+                    </Badge>
                   </div>
                 </div>
-              </>
-            )}
-          </div>
-        </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </CardContent>
     </Card>
   );

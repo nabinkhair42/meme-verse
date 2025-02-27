@@ -1,9 +1,10 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Heart, MessageSquare } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Heart, MessageSquare, ImageIcon, RefreshCcw, Loader2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
@@ -49,15 +50,13 @@ export default function ProfileMemeGrid({ userId, type }: ProfileMemeGridProps) 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   
-  // Configure IntersectionObserver with threshold and rootMargin
   const { ref, inView } = useInView({
     threshold: 0,
-    rootMargin: "100px",
-    delay: 100, // Add delay to prevent rapid firing
+    rootMargin: "200px",
+    delay: 100,
   });
   
   const fetchMemes = useCallback(async (pageNum: number, isInitial: boolean = false) => {
-    // Prevent duplicate requests
     if (isLoading) return;
     
     try {
@@ -85,7 +84,6 @@ export default function ProfileMemeGrid({ userId, type }: ProfileMemeGridProps) 
       
       const { memes: newMemes, pagination } = result.data;
       
-      // Process memes only if we have new data
       if (newMemes?.length) {
         const processedMemes = newMemes.map(meme => ({
           ...meme,
@@ -111,7 +109,6 @@ export default function ProfileMemeGrid({ userId, type }: ProfileMemeGridProps) 
     }
   }, [userId, type]);
   
-  // Initial load
   useEffect(() => {
     setMemes([]);
     setPage(1);
@@ -121,14 +118,13 @@ export default function ProfileMemeGrid({ userId, type }: ProfileMemeGridProps) 
     fetchMemes(1, true);
   }, [userId, type, fetchMemes]);
   
-  // Handle infinite scroll with debounce
   useEffect(() => {
     if (!inView || isLoading || !hasMore || isInitialLoad) return;
     
     const timer = setTimeout(() => {
       setPage(prev => prev + 1);
       fetchMemes(page + 1, false);
-    }, 300); // Add debounce delay
+    }, 300);
     
     return () => clearTimeout(timer);
   }, [inView, isLoading, hasMore, page, fetchMemes, isInitialLoad]);
@@ -141,79 +137,124 @@ export default function ProfileMemeGrid({ userId, type }: ProfileMemeGridProps) 
       day: "numeric",
     });
   };
-  
-  if (error) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-red-500 mb-4">{error}</p>
-        <Button onClick={() => {
-          setPage(1);
-          setMemes([]);
-          setHasMore(true);
-          setError(null);
-          fetchMemes(1);
-        }}>Try Again</Button>
-      </div>
-    );
-  }
-  
+
   const getEmptyStateMessage = () => {
     switch (type) {
       case "uploaded":
         return {
           message: "No uploaded memes found",
           action: "/create",
-          buttonText: "Upload a Meme"
+          buttonText: "Upload a Meme",
+          icon: <ImageIcon className="h-12 w-12 mb-4 text-muted-foreground" />
         };
       case "generated":
         return {
           message: "No generated memes found",
           action: "/generate",
-          buttonText: "Generate a Meme"
+          buttonText: "Generate a Meme",
+          icon: <ImageIcon className="h-12 w-12 mb-4 text-muted-foreground" />
         };
       case "saved":
         return {
           message: "No saved memes found",
           action: "/explore",
-          buttonText: "Explore Memes"
+          buttonText: "Explore Memes",
+          icon: <Heart className="h-12 w-12 mb-4 text-muted-foreground" />
         };
     }
   };
-  
+
+  if (error) {
+    return (
+      <div className="text-center py-12 bg-destructive/5 rounded-lg">
+        <ImageIcon className="h-12 w-12 mx-auto mb-4 text-destructive/60" />
+        <p className="text-destructive mb-6">{error}</p>
+        <Button 
+          onClick={() => {
+            setPage(1);
+            setMemes([]);
+            setHasMore(true);
+            setError(null);
+            fetchMemes(1, true);
+          }}
+          variant="outline"
+          className="group"
+        >
+          <RefreshCcw className="h-4 w-4 mr-2" />
+          Try Again
+        </Button>
+      </div>
+    );
+  }
+
+  // Loading skeleton
+  if (isInitialLoad) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {[...Array(6)].map((_, i) => (
+          <Card key={`skeleton-${i}`} className="overflow-hidden">
+            <Skeleton className="aspect-square" />
+            <CardContent className="p-4 space-y-2">
+              <Skeleton className="h-6 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+              <div className="flex justify-between items-center">
+                <div className="space-x-2">
+                  <Skeleton className="h-4 w-12 inline-block" />
+                  <Skeleton className="h-4 w-12 inline-block" />
+                </div>
+                <Skeleton className="h-4 w-16" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  if (memes.length === 0 && !isLoading) {
+    const emptyState = getEmptyStateMessage();
+    return (
+      <div className="text-center py-12 bg-muted/30 rounded-lg">
+        {emptyState.icon}
+        <p className="text-lg font-medium mb-2">{emptyState.message}</p>
+        <p className="text-muted-foreground mb-6">Start creating and sharing your memes with the world!</p>
+        <Link href={emptyState.action}>
+          <Button>{emptyState.buttonText}</Button>
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div>
-      {memes.length === 0 && !isLoading && !isInitialLoad ? (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground mb-4">{getEmptyStateMessage().message}</p>
-          <Link href={getEmptyStateMessage().action}>
-            <Button>{getEmptyStateMessage().buttonText}</Button>
-          </Link>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {memes.map((meme) => (
-            <Link href={`/meme/${meme.id}`} key={meme.id}>
-              <Card className="overflow-hidden h-full hover:shadow-md transition-shadow">
-                <div className="aspect-square relative">
-                  <Image
-                    src={meme.imageUrl}
-                    alt={meme.title}
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                    loading="lazy"
-                    unoptimized
-                  />
-                </div>
-                <div className="p-3">
-                  <h3 className="font-medium truncate">{meme.title}</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {memes.map((meme) => (
+          <Link key={meme.id} href={`/meme/${meme.id}`}>
+            <Card className="overflow-hidden h-full hover:shadow-lg transition-all duration-300 border-border/40">
+              <div className="aspect-square relative">
+                <Image
+                  src={meme.imageUrl}
+                  alt={meme.title}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  priority={false}
+                  loading="lazy"
+                  quality={75}
+                />
+              </div>
+              <CardContent className="p-4">
+                <div className="space-y-2">
+                  <h3 className="font-medium line-clamp-1 group-hover:text-primary">
+                    {meme.title}
+                  </h3>
                   {meme.description && (
-                    <p className="text-sm text-muted-foreground truncate mt-1">
+                    <p className="text-sm text-muted-foreground line-clamp-2">
                       {meme.description}
                     </p>
                   )}
-                  <div className="flex items-center justify-between mt-2 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-3 text-muted-foreground">
                       <span className="flex items-center">
                         <Heart className="h-4 w-4 mr-1" />
                         {meme.likes}
@@ -223,32 +264,37 @@ export default function ProfileMemeGrid({ userId, type }: ProfileMemeGridProps) 
                         {meme.commentCount}
                       </span>
                     </div>
-                    <span>{formatDate(meme.createdAt)}</span>
+                    <Badge variant="secondary" className="text-xs">
+                      {meme.category}
+                    </Badge>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDate(meme.createdAt)}
+                  </p>
                 </div>
-              </Card>
-            </Link>
-          ))}
-          
-          {/* Loading skeletons */}
-          {(isLoading || isInitialLoad) && (
-            <>
-              {[...Array(3)].map((_, i) => (
-                <Card key={`skeleton-${i}`} className="overflow-hidden">
-                  <Skeleton className="aspect-square" />
-                  <div className="p-3">
-                    <Skeleton className="h-5 w-3/4 mb-2" />
-                    <Skeleton className="h-4 w-1/2" />
-                  </div>
-                </Card>
-              ))}
-            </>
-          )}
-          
-          {/* Load more trigger */}
-          {hasMore && !isLoading && !isInitialLoad && (
-            <div ref={ref} className="h-10 col-span-full" />
-          )}
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
+
+      {/* Load more trigger */}
+      {hasMore && !isLoading && (
+        <div ref={ref} className="flex justify-center mt-8">
+          <Button variant="outline" disabled className="opacity-0">
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Loading more...
+          </Button>
+        </div>
+      )}
+
+      {/* Loading more indicator */}
+      {isLoading && !isInitialLoad && (
+        <div className="flex justify-center mt-8">
+          <Button variant="outline" disabled>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Loading more...
+          </Button>
         </div>
       )}
     </div>

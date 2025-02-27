@@ -15,14 +15,6 @@ import { useSelector } from "react-redux";
 import { RootState } from "@/redux/store";
 import { Meme } from "@/redux/features/memes/memesSlice";
 
-// Define the PaginatedResponse interface if it doesn't exist
-interface PaginatedResponse<T> {
-  data: T[];  // Change this to match your actual API response structure
-  pagination: {
-    page: number;
-    totalPages: number;
-  };
-}
 
 export function MemeFeed() {
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);

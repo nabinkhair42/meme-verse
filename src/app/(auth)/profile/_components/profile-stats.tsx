@@ -3,8 +3,10 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Heart, ImageIcon, MessageSquare, TrendingUp, Award } from "lucide-react";
+import { Heart, ImageIcon, MessageSquare, TrendingUp, Award, Trophy } from "lucide-react";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 interface ProfileStatsProps {
   userId: string;
@@ -22,16 +24,32 @@ interface UserStats {
   };
 }
 
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0 }
+};
+
 export default function ProfileStats({ userId }: ProfileStatsProps) {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   useEffect(() => {
     const fetchStats = async () => {
       try {
         setIsLoading(true);
+        setError(null);
         
-        // Fetch user profile by ID
         const response = await fetch(`/api/auth/profile/${userId}`);
         
         if (!response.ok) {
@@ -40,7 +58,6 @@ export default function ProfileStats({ userId }: ProfileStatsProps) {
         
         const data = await response.json();
         
-        // Extract stats from the response
         setStats({
           memes: data.stats.memes || 0,
           likes: data.stats.likes || 0,
@@ -50,9 +67,9 @@ export default function ProfileStats({ userId }: ProfileStatsProps) {
         });
       } catch (error) {
         console.error("Error fetching user stats:", error);
+        setError("Failed to load user statistics");
         toast.error("Failed to load user statistics");
         
-        // Set default stats
         setStats({
           memes: 0,
           likes: 0,
@@ -70,18 +87,44 @@ export default function ProfileStats({ userId }: ProfileStatsProps) {
   
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+      <motion.div 
+        className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8"
+        variants={container}
+        initial="hidden"
+        animate="show"
+      >
         {[...Array(3)].map((_, i) => (
-          <Card key={i}>
-            <CardHeader className="pb-2">
-              <Skeleton className="h-6 w-24" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-10 w-16" />
-            </CardContent>
-          </Card>
+          <motion.div key={i} variants={item}>
+            <Card className="overflow-hidden border-border/40">
+              <CardHeader className="pb-2">
+                <Skeleton className="h-6 w-24" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-10 w-16" />
+                <Skeleton className="h-4 w-32 mt-2" />
+              </CardContent>
+            </Card>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <motion.div 
+        className="mt-8 p-6 text-center bg-destructive/5 rounded-lg"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <p className="text-destructive mb-2">{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          Refresh page
+        </button>
+      </motion.div>
     );
   }
   
@@ -89,54 +132,96 @@ export default function ProfileStats({ userId }: ProfileStatsProps) {
     return null;
   }
   
+  const calculateEngagementRate = () => {
+    if (stats.memes === 0) return 0;
+    return ((stats.likes + stats.comments) / stats.memes).toFixed(1);
+  };
+  
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium flex items-center">
-            <ImageIcon className="h-4 w-4 mr-2 text-primary" />
-            Total Memes
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-2xl font-bold">{stats.memes}</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {stats.topCategory && `Mostly in ${stats.topCategory}`}
-          </p>
-        </CardContent>
-      </Card>
+    <motion.div 
+      className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8"
+      variants={container}
+      initial="hidden"
+      animate="show"
+    >
+      <motion.div variants={item}>
+        <Card className="overflow-hidden border-border/40 hover:shadow-md transition-all group">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center text-muted-foreground group-hover:text-foreground transition-colors">
+              <ImageIcon className="h-4 w-4 mr-2 text-primary" />
+              Total Memes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <motion.p 
+              className="text-3xl font-bold tracking-tight"
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 200, damping: 10 }}
+            >
+              {stats.memes}
+            </motion.p>
+            {stats.topCategory && (
+              <p className="text-sm text-muted-foreground mt-1 flex items-center">
+                <Trophy className="h-4 w-4 mr-1 text-primary" />
+                Most in {stats.topCategory}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
       
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium flex items-center">
-            <Heart className="h-4 w-4 mr-2 text-primary" />
-            Total Likes
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-2xl font-bold">{stats.likes}</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {stats.mostLikedMeme && `Most liked: ${stats.mostLikedMeme.title} (${stats.mostLikedMeme.likes})`}
-          </p>
-        </CardContent>
-      </Card>
+      <motion.div variants={item}>
+        <Card className="overflow-hidden border-border/40 hover:shadow-md transition-all group">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center text-muted-foreground group-hover:text-foreground transition-colors">
+              <Heart className="h-4 w-4 mr-2 text-primary" />
+              Total Likes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <motion.p 
+              className="text-3xl font-bold tracking-tight"
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 200, damping: 10 }}
+            >
+              {stats.likes}
+            </motion.p>
+            {stats.mostLikedMeme && (
+              <p className="text-sm text-muted-foreground mt-1 flex items-center">
+                <Award className="h-4 w-4 mr-1 text-primary" />
+                Top: {stats.mostLikedMeme.title} ({stats.mostLikedMeme.likes})
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
       
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium flex items-center">
-            <TrendingUp className="h-4 w-4 mr-2 text-primary" />
-            Engagement
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-2xl font-bold">
-            {stats.memes > 0 ? Math.round((stats.likes / stats.memes) * 10) / 10 : 0}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Average likes per meme
-          </p>
-        </CardContent>
-      </Card>
-    </div>
+      <motion.div variants={item}>
+        <Card className="overflow-hidden border-border/40 hover:shadow-md transition-all group">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center text-muted-foreground group-hover:text-foreground transition-colors">
+              <TrendingUp className="h-4 w-4 mr-2 text-primary" />
+              Engagement Rate
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <motion.p 
+              className="text-3xl font-bold tracking-tight"
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 200, damping: 10 }}
+            >
+              {calculateEngagementRate()}
+            </motion.p>
+            <p className="text-sm text-muted-foreground mt-1 flex items-center">
+              <MessageSquare className="h-4 w-4 mr-1 text-primary" />
+              Interactions per meme
+            </p>
+          </CardContent>
+        </Card>
+      </motion.div>
+    </motion.div>
   );
 } 

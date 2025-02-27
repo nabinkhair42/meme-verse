@@ -94,25 +94,59 @@ export default function ProfilePage() {
   
   if (isLoading) {
     return (
-      <div className="flex w-full justify-center py-8">
-        <div className="max-w-7xl mx-auto">
-          <Card>
+      <div className="flex w-full justify-center py-8 px-4">
+        <div className="max-w-7xl mx-auto w-full">
+          <Card className="mb-8">
             <CardContent className="p-6">
               <div className="flex flex-col md:flex-row gap-6">
-                <Skeleton className="h-24 w-24 rounded-full" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-8 w-1/3" />
-                  <Skeleton className="h-4 w-1/4" />
+                <div className="flex flex-col items-center">
+                  <Skeleton className="h-24 w-24 rounded-full" />
+                  <Skeleton className="h-9 w-28 mt-4" />
+                </div>
+                <div className="flex-1 space-y-4">
+                  <div>
+                    <Skeleton className="h-8 w-48 mb-2" />
+                    <Skeleton className="h-4 w-32" />
+                  </div>
                   <Skeleton className="h-20 w-full" />
+                  <div className="flex flex-wrap gap-4">
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-5 w-32" />
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
-          
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[...Array(6)].map((_, i) => (
-              <Skeleton key={i} className="aspect-square rounded-md" />
-            ))}
+
+          <div className="mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...Array(3)].map((_, i) => (
+                <Card key={`stat-${i}`} className="p-4">
+                  <Skeleton className="h-8 w-24 mb-2" />
+                  <Skeleton className="h-6 w-full" />
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex space-x-1 rounded-lg bg-muted p-1 w-fit">
+              {[...Array(3)].map((_, i) => (
+                <Skeleton key={`tab-${i}`} className="h-9 w-28" />
+              ))}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(6)].map((_, i) => (
+                <Card key={`meme-${i}`} className="overflow-hidden">
+                  <Skeleton className="aspect-square" />
+                  <CardContent className="p-4">
+                    <Skeleton className="h-6 w-3/4 mb-2" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -126,7 +160,7 @@ export default function ProfilePage() {
   
   if (!profile) {
     return (
-      <div className="max-w-7xl mx-auto py-8 text-center">
+      <div className="max-w-7xl mx-auto py-8 px-4 text-center">
         <h1 className="text-2xl font-bold mb-4">Profile not found</h1>
         <p className="text-muted-foreground mb-4">We couldn't find your profile information.</p>
         <Button onClick={() => window.location.reload()}>Retry</Button>
@@ -145,7 +179,7 @@ export default function ProfilePage() {
   
   return (
     <div className="flex w-full justify-center py-8 px-4">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto w-full">
         <Card className="mb-8">
           <CardContent className="p-6">
             {isEditing ? (
@@ -158,7 +192,10 @@ export default function ProfilePage() {
               <div className="flex flex-col md:flex-row gap-6">
                 <div className="flex flex-col items-center">
                   <Avatar className="h-24 w-24">
-                    <AvatarImage src={profile.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.username}`} />
+                    <AvatarImage 
+                      src={profile.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.username}`} 
+                      alt={profile.name}
+                    />
                     <AvatarFallback>{profile.username?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
                   </Avatar>
                   
@@ -204,7 +241,7 @@ export default function ProfilePage() {
         <ProfileStats userId={profile.id} />
         
         <div className="mt-8">
-          <Tabs defaultValue="uploaded" value={activeTab} onValueChange={setActiveTab}>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="mb-4">
               <TabsTrigger value="uploaded">Uploaded Memes</TabsTrigger>
               <TabsTrigger value="generated">Generated Memes</TabsTrigger>
