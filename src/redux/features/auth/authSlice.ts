@@ -1,15 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
 import { authService } from "@/services/api";
 import { toast } from "sonner";
-
-export interface User {
-  id: string;
-  username: string;
-  email: string;
-  avatar: string;
-  bio: string;
-  joinDate: string;
-}
+import { User } from "@/types";
 
 export interface AuthState {
   user: User | null;

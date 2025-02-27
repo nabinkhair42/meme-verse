@@ -91,13 +91,6 @@ export function Navbar() {
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('token');
       const storedUser = localStorage.getItem('user');
-      
-      // Log authentication state for debugging
-      console.log('Navbar auth state:', {
-        reduxIsAuthenticated: isAuthenticated,
-        hasTokenInStorage: !!token,
-        hasUserInStorage: !!storedUser
-      });
     }
   }, [isAuthenticated]);
   

@@ -13,7 +13,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { formatDate } from "@/lib/utils"
 import type { RootState } from "@/redux/store"
 import { memeService } from "@/services/api"
-import type { Meme } from "@/types/meme"
 import { useInfiniteQuery } from "@tanstack/react-query"
 import { AnimatePresence, motion } from "framer-motion"
 import {
@@ -37,21 +36,8 @@ import { useSelector } from "react-redux"
 import { toast } from "sonner"
 import { LeftSidebar } from "@/components/home/left-sidebar"
 import { RightSidebar } from "@/components/home/right-sidebar"
+import { Meme } from "@/types"
 
-// Define a local comment interface that matches the backend response
-interface CommentData {
-  _id?: string
-  id?: string
-  memeId: string
-  userId: string
-  username: string
-  author?: string
-  userAvatar?: string
-  content: string
-  text?: string
-  createdAt: Date | string
-  updatedAt?: Date | string
-}
 
 export default function MemePage() {
   const { id } = useParams()
@@ -208,7 +194,7 @@ export default function MemePage() {
       })
 
       // Call API to toggle like
-      const result = await memeService.likeMeme(memeData._id || "", !hasLiked, user?.id || "")
+      const result = await memeService.likeMeme(memeData._id)
       // Log the response for debugging
       console.log(`Like response for meme ${memeData._id}:`, result)
 
@@ -273,20 +259,6 @@ export default function MemePage() {
       // Process the new comment to match our local interface
       // Log the actual structure of the newComment object to debug type issues
       console.log("New comment structure:", JSON.stringify(newComment, null, 2))
-
-      const processedComment: CommentData = {
-        id: newComment.id || (newComment as any)._id || "",
-        _id: (newComment as any)._id || newComment.id || "",
-        memeId: (newComment as any).memeId || memeData._id,
-        userId: (newComment as any).userId || user?.id || "",
-        username: (newComment as any).username || profile?.username || user?.username || "Anonymous",
-        author: (newComment as any).username || profile?.username || user?.username || "Anonymous",
-        userAvatar: (newComment as any).userAvatar || profile?.avatar || "",
-        content: (newComment as any).content || commentToSubmit,
-        text: (newComment as any).content || commentToSubmit,
-        createdAt: newComment.createdAt || new Date().toISOString(),
-        updatedAt: (newComment as any).updatedAt || new Date().toISOString(),
-      }
 
       // Refetch comments to include the new one
       refetchComments()

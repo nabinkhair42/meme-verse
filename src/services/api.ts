@@ -4,182 +4,51 @@ import { toast } from "sonner";
 import { 
   GenerateMemeInput, 
   GenerateMemeResponse, 
-  Meme, 
+  Meme,
   MemeTemplate,
-  Comment,
-  PaginatedMemes 
+  Comment 
 } from "@/types/meme";
+import { PaginatedResponse } from "@/types/api";
+import { TextElement } from "@/types/template";
+import { User } from "@/types";
+import { 
+  IMGBB_API_KEY, 
+  AUTH_ROUTES,
+  FEED_ROUTES,
+  MEME_ROUTES,
+  USER_ROUTES,
+  LEADERBOARD_ROUTES,
+  EXTERNAL_ROUTES
+} from "./routes";
+import api from "./axios";
 
-const IMGBB_API_KEY = process.env.NEXT_PUBLIC_IMGBB_API_KEY;
-
-// Define types for better type safety
-export interface Meme {
-  id: string;
-  title: string;
-  description?: string;
-  url: string;
-  author: string;
-  authorId: string;
-  createdAt: string;
-  likes: number;
-  comments: Comment[];
-  tags?: string[];
-  category: string;
-}
-
-export interface Comment {
-  id: string;
-  _id?: string;
-  text?: string;
-  content?: string;
-  author?: string;
-  username?: string;
-  authorId?: string;
-  userId?: string;
-  authorAvatar?: string;
-  userAvatar?: string;
-  memeId?: string;
-  createdAt: string;
-  updatedAt?: string;
-}
-
-export interface User {
-  id: string;
-  username: string;
-  email: string;
-  avatar: string;
-  bio?: string;
-  joinDate: string;
-}
-
-export interface PaginatedResponse<T> {
-  data: T[];
-  pagination: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  };
-}
-
-// Add TextElement interface
-export interface TextElement {
-  id: string;
-  text: string;
-  x: number;
-  y: number;
-  fontSize: number;
-  color: string;
-  strokeColor: string;
-  rotation: number;
-}
-
-// Create an axios instance with interceptors
-const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "",
-  withCredentials: true, // Enable cookies for all requests
-});
-
-// Add a request interceptor to automatically add the token to all requests
-api.interceptors.request.use(
-  (config) => {
-    // Get token from localStorage
-    const token = localStorage.getItem('token');
-    
-    // If token exists, add it to the Authorization header
-    if (token && !config.headers.Authorization) {
-      config.headers.Authorization = `Bearer ${token}`;
-      console.log(`Adding token to request: ${token.substring(0, 15)}...`);
-    } else {
-      console.log(`No token available for request to ${config.url}`);
-    }
-    
-    return config;
+// Define fallback templates outside the function to avoid recreation
+const fallbackTemplates = [
+  {
+    id: "181913649",
+    name: "Drake Hotline Bling",
+    url: "https://i.imgflip.com/30b1gx.jpg",
+    width: 1200,
+    height: 1200,
+    box_count: 2
   },
-  (error) => {
-    return Promise.reject(error);
+  {
+    id: "87743020",
+    name: "Two Buttons",
+    url: "https://i.imgflip.com/1g8my4.jpg",
+    width: 600,
+    height: 908,
+    box_count: 3
+  },
+  {
+    id: "112126428",
+    name: "Distracted Boyfriend",
+    url: "https://i.imgflip.com/1ur9b0.jpg",
+    width: 1200,
+    height: 800,
+    box_count: 3
   }
-);
-
-// Add a response interceptor to handle 401 errors
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-    
-    // If there's no response, it's likely a network error
-    if (!error.response) {
-      console.error("Network error:", error.message);
-      // Don't show toast for validation requests to avoid spam
-      if (!originalRequest.url.includes('/api/auth/validate')) {
-        toast.error("Network error. Please check your connection.");
-      }
-      return Promise.reject(error);
-    }
-    
-    // Handle 401 Unauthorized errors
-    if (error.response.status === 401) {
-      console.log("401 Unauthorized error detected");
-      
-      // For validation requests, never retry - just fail cleanly
-      if (originalRequest.url.includes('/api/auth/validate')) {
-        // Set a flag to remember user was logged in before
-        localStorage.setItem('wasLoggedIn', 'true');
-        
-        // Clear auth data
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        
-        return Promise.reject(error);
-      }
-      
-      // If this is already a retry, don't retry again
-      if (originalRequest._retry) {
-        // Clear auth data on persistent auth failures
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        
-        // Redirect to login if needed
-        if (typeof window !== 'undefined' && 
-            !window.location.pathname.includes('/login') &&
-            !window.location.pathname.includes('/register')) {
-          toast.error("Your session has expired. Please log in again.");
-          window.location.href = '/login';
-        }
-        
-        return Promise.reject(error);
-      }
-      
-      // Mark as retry attempt
-      originalRequest._retry = true;
-      
-      // Try to get a new token or handle the error
-      try {
-        // You could implement token refresh here if needed
-        console.log("Retrying request with existing token");
-        return api(originalRequest);
-      } catch (refreshError) {
-        console.error("Error refreshing auth:", refreshError);
-        
-        // Clear auth data
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        
-        // Redirect to login
-        if (typeof window !== 'undefined' && 
-            !window.location.pathname.includes('/login') &&
-            !window.location.pathname.includes('/register')) {
-          window.location.href = '/login';
-        }
-        
-        return Promise.reject(error);
-      }
-    }
-    
-    // Handle other errors
-    return Promise.reject(error);
-  }
-);
+];
 
 // Imgflip API services
 export const imgflipService = {
@@ -188,36 +57,8 @@ export const imgflipService = {
     try {
       console.log("Fetching templates from API...");
       
-      // Define fallback templates
-      const fallbackTemplates = [
-        {
-          id: "181913649",
-          name: "Drake Hotline Bling",
-          url: "https://i.imgflip.com/30b1gx.jpg",
-          width: 1200,
-          height: 1200,
-          box_count: 2
-        },
-        {
-          id: "87743020",
-          name: "Two Buttons",
-          url: "https://i.imgflip.com/1g8my4.jpg",
-          width: 600,
-          height: 908,
-          box_count: 3
-        },
-        {
-          id: "112126428",
-          name: "Distracted Boyfriend",
-          url: "https://i.imgflip.com/1ur9b0.jpg",
-          width: 1200,
-          height: 800,
-          box_count: 3
-        }
-      ];
-      
       try {
-        const response = await api.get('/api/templates');
+        const response = await api.get(MEME_ROUTES.TEMPLATES);
         
         if (!response.data || !response.data.templates || !Array.isArray(response.data.templates)) {
           console.error("Invalid response format:", response.data);
@@ -296,7 +137,7 @@ export const imgflipService = {
       console.log(`Generating meme with template ${finalTemplateId}...`);
       
       // Call the API
-      const response = await api.post('/api/generate', { 
+      const response = await api.post(MEME_ROUTES.GENERATE, { 
         templateId: finalTemplateId, 
         topText: topText || "", 
         bottomText: bottomText || "",
@@ -329,37 +170,17 @@ export const imgflipService = {
   // Get trending memes
   getTrendingMemes: async (page = 1, limit = 10, period = 'week') => {
     try {
-      const response = await api.get('/api/feed/trending', {
+      const response = await api.get(FEED_ROUTES.TRENDING, {
         params: { page, limit, period }
       });
       
-      // Check if the response has the expected structure
       if (response.data && response.data.success && response.data.data) {
-        // Map the memes to the expected format
-        const mappedMemes = response.data.data.memes.map((meme: any) => ({
-          id: meme._id || meme.id, // Use _id as id if available
-          title: meme.title,
-          description: meme.description || '',
-          url: meme.imageUrl || meme.url, // Use imageUrl as url if available
-          category: meme.category || 'Other',
-          author: meme.username || meme.author || 'Unknown',
-          authorId: meme.userId || meme.authorId || '',
-          createdAt: meme.createdAt,
-          likes: meme.likes || 0,
-          commentCount: meme.commentCount || 0,
-          comments: meme.comments || [],
-          tags: meme.tags || [],
-          isLiked: meme.isLiked || false,
-          isSaved: meme.isSaved || false
-        }));
-        
         return {
-          data: mappedMemes,
+          data: response.data.data.memes,
           pagination: response.data.data.pagination
         };
       }
       
-      // Fallback to the original response if it doesn't match the expected structure
       return response.data;
     } catch (error) {
       console.error("Error fetching trending memes:", error);
@@ -376,7 +197,7 @@ export const imgbbService = {
       formData.append("image", file);
       formData.append("key", IMGBB_API_KEY || "");
 
-      const response = await axios.post('https://api.imgbb.com/1/upload', formData);
+      const response = await axios.post(EXTERNAL_ROUTES.IMGBB_UPLOAD, formData);
       return {
         url: response.data.data.url,
         delete_url: response.data.data.delete_url
@@ -395,10 +216,10 @@ export const memeService = {
     page = 1, 
     limit = 10, 
     category = "", 
-    sort = "latest" 
+    sort = "latest",
   } = {}): Promise<PaginatedResponse<Meme>> => {
     try {
-      const response = await api.get(`/api/feed`, {
+      const response = await api.get(FEED_ROUTES.BASE, {
         params: { page, limit, category, sort }
       });
 
@@ -416,36 +237,13 @@ export const memeService = {
   // Get a single meme by ID
   getMemeById: async (id: string): Promise<Meme> => {
     try {
-      const response = await api.get(`/api/memes/${id}`);
+      const response = await api.get(MEME_ROUTES.BY_ID(id));
       
       if (!response.data.success) {
         throw new Error(response.data.error || "Failed to fetch meme");
       }
 
-      const meme = response.data.data;
-      return {
-        _id: meme._id || meme.id || id,
-        id: meme.id || meme._id || id,
-        title: meme.title || 'Untitled Meme',
-        imageUrl: meme.imageUrl || meme.url || '',
-        url: meme.url || meme.imageUrl || '',
-        description: meme.description || '',
-        userId: meme.userId || 'anonymous',
-        username: meme.username || meme.author || 'Anonymous',
-        author: meme.author || meme.username || 'Anonymous',
-        userAvatar: meme.userAvatar || '',
-        authorId: meme.authorId || meme.userId || 'anonymous',
-        createdAt: meme.createdAt || new Date().toISOString(),
-        updatedAt: meme.updatedAt || meme.createdAt || new Date().toISOString(),
-        likes: typeof meme.likes === 'number' ? meme.likes : 0,
-        commentCount: typeof meme.commentCount === 'number' ? meme.commentCount : 0,
-        comments: Array.isArray(meme.comments) ? meme.comments : [],
-        category: meme.category || 'Other',
-        tags: Array.isArray(meme.tags) ? meme.tags : [],
-        type: meme.type || 'uploaded',
-        isLiked: !!meme.isLiked,
-        isSaved: !!meme.isSaved
-      };
+      return response.data.data;
     } catch (error) {
       console.error(`Error fetching meme ${id}:`, error);
       throw error;
@@ -473,7 +271,7 @@ export const memeService = {
         category: memeData.category || "Other" // Default to "Other" if category is undefined
       };
       
-      const response = await api.post('/api/memes', memeWithCategory);
+      const response = await api.post(MEME_ROUTES.BASE, memeWithCategory);
       
       if (!response.data || !response.data.id) {
         console.error("Invalid response from create meme API:", response.data);
@@ -484,57 +282,38 @@ export const memeService = {
       return response.data;
     } catch (error) {
       console.error("Error creating meme:", error);
-      
-      // In development, return a mock meme for testing
-      if (process.env.NODE_ENV === "development") {
-        console.log("Using mock meme for development");
-        const mockMeme: Meme = {
-          id: `mock-${Date.now()}`,
-          title: memeData.title,
-          url: memeData.url || memeData.imageUrl || "",
-          description: memeData.description || "",
-          category: memeData.category || "Other", // Ensure category is a string
-          tags: memeData.tags || [],
-          author: "You",
-          authorId: "your-id",
-          createdAt: new Date().toISOString(),
-          likes: 0,
-          comments: []
-        };
-        return mockMeme;
-      }
-      
+    
       throw error;
     }
   },
 
   // Like a meme
-  likeMeme: async (memeId: string, liked: boolean, userId: string): Promise<{ liked: boolean; likes: number }> => {
+  likeMeme: async (memeId: string): Promise<{ liked: boolean; likes: number }> => {
     try {
-      const response = await api.post<ApiResponse>(`/api/memes/${memeId}/like`);
+      const response = await api.post<ApiResponse>(MEME_ROUTES.LIKE(memeId));
       
       if (!response.data.success) {
         throw new Error(response.data.error || "Failed to update like status");
       }
       
       return response.data.data;
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error liking meme:", error);
       throw error;
     }
   },
 
-  // Check if user has liked a meme
+  // Check like status
   checkLikeStatus: async (memeId: string): Promise<{ liked: boolean }> => {
     try {
-      const response = await api.get<ApiResponse>(`/api/memes/${memeId}/like`);
+      const response = await api.get<ApiResponse>(MEME_ROUTES.LIKE(memeId));
       
       if (!response.data.success) {
         throw new Error(response.data.error || "Failed to check like status");
       }
       
       return response.data.data;
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error checking like status:", error);
       return { liked: false };
     }
@@ -543,30 +322,30 @@ export const memeService = {
   // Save a meme
   saveMeme: async (memeId: string): Promise<{ saved: boolean }> => {
     try {
-      const response = await api.post<ApiResponse>(`/api/memes/${memeId}/save`);
+      const response = await api.post<ApiResponse>(MEME_ROUTES.SAVE(memeId));
       
       if (!response.data.success) {
         throw new Error(response.data.error || "Failed to update save status");
       }
       
       return response.data.data;
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error saving meme:", error);
       throw error;
     }
   },
 
-  // Check if user has saved a meme
+  // Check save status
   checkSaveStatus: async (memeId: string): Promise<{ saved: boolean }> => {
     try {
-      const response = await api.get<ApiResponse>(`/api/memes/${memeId}/save`);
+      const response = await api.get<ApiResponse>(MEME_ROUTES.SAVE(memeId));
       
       if (!response.data.success) {
         throw new Error(response.data.error || "Failed to check save status");
       }
       
       return response.data.data;
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error checking save status:", error);
       return { saved: false };
     }
@@ -745,17 +524,16 @@ export const memeService = {
   // Get user-generated memes
   getUserGeneratedMemes: async (onlyGenerated = true): Promise<Meme[]> => {
     try {
-      const url = onlyGenerated 
-        ? '/api/memes/user-generated?generated=true'
-        : '/api/memes/user-generated';
-        
-      const response = await api.get(url);
+      const response = await api.get(MEME_ROUTES.USER_GENERATED, {
+        params: { generated: onlyGenerated }
+      });
       return response.data;
     } catch (error) {
       console.error("Error fetching user-generated memes:", error);
       return [];
     }
   },
+
   createUserGeneratedMeme: async (memeData: {
     title: string;
     url: string;
@@ -764,15 +542,7 @@ export const memeService = {
     tags?: string[];
   }): Promise<Meme> => {
     try {
-      console.log("Creating user-generated meme with data:", memeData);
-      
-      const response = await api.post('/api/memes/user-generated', memeData);
-      
-      if (!response.data || !response.data.id) {
-        console.error("Invalid response from create user-generated meme API:", response.data);
-        throw new Error("Invalid response from server");
-      }
-      
+      const response = await api.post(MEME_ROUTES.USER_GENERATED, memeData);
       return response.data;
     } catch (error) {
       console.error("Error creating user-generated meme:", error);
@@ -790,7 +560,7 @@ export const memeService = {
   async getTrendingMemes(page = 1, limit = 10, period = 'week') {
     try {
       // Try to use the dedicated trending API
-      const response = await api.get(`/api/feed/trending`, {
+      const response = await api.get(FEED_ROUTES.TRENDING, {
         params: { page, limit, period }
       });
       
@@ -847,56 +617,11 @@ export const memeService = {
     limit?: number 
   }) {
     try {
-      const { search = '', category = '', sort = 'newest', page = 1, limit = 10 } = options;
-      
-      const params = new URLSearchParams();
-      if (search) params.append('search', search);
-      if (category) params.append('category', category);
-      if (sort) params.append('sort', sort);
-      if (page) params.append('page', page.toString());
-      if (limit) params.append('limit', limit.toString());
-      
-      const response = await api.get(`/api/search?${params.toString()}`);
-      
-      // Check if the response has the expected structure
-      if (response.data && response.data.success && response.data.data) {
-        // Map the memes to the expected format
-        const mappedMemes = response.data.data.memes.map((meme: any) => ({
-          id: meme._id || meme.id,
-          title: meme.title,
-          description: meme.description || '',
-          url: meme.imageUrl || meme.url,
-          category: meme.category || 'Other',
-          author: meme.username || meme.author || 'Unknown',
-          authorId: meme.userId || meme.authorId || '',
-          createdAt: meme.createdAt,
-          likes: meme.likes || 0,
-          commentCount: meme.commentCount || 0,
-          comments: meme.comments || [],
-          tags: meme.tags || [],
-          isLiked: meme.isLiked || false,
-          isSaved: meme.isSaved || false
-        }));
-        
-        return {
-          data: mappedMemes,
-          pagination: response.data.data.pagination
-        };
-      }
-      
-      // Fallback to the original response if it doesn't match the expected structure
+      const response = await api.get(FEED_ROUTES.SEARCH, { params: options });
       return response.data;
     } catch (error) {
       console.error("Error searching memes:", error);
-      
-      // Fall back to the regular API
-      console.log("Falling back to regular API for search");
-      return this.getMemes({
-        category: options?.category,
-        sort: options?.sort,
-        page: options?.page,
-        limit: options?.limit
-      });
+      return this.getMemes(options);
     }
   },
 
@@ -912,55 +637,13 @@ export const memeService = {
     limit?: number 
   } = {}) {
     try {
-      const { sort = 'newest', page = 1, limit = 10 } = options;
-      
-      const params = new URLSearchParams();
-      params.append('category', category);
-      if (sort) params.append('sort', sort);
-      if (page) params.append('page', page.toString());
-      if (limit) params.append('limit', limit.toString());
-      
-      const response = await api.get(`/api/category?${params.toString()}`);
-      
-      // Check if the response has the expected structure
-      if (response.data && response.data.success && response.data.data) {
-        // Map the memes to the expected format
-        const mappedMemes = response.data.data.memes.map((meme: any) => ({
-          id: meme._id || meme.id,
-          title: meme.title,
-          description: meme.description || '',
-          url: meme.imageUrl || meme.url,
-          category: meme.category || 'Other',
-          author: meme.username || meme.author || 'Unknown',
-          authorId: meme.userId || meme.authorId || '',
-          createdAt: meme.createdAt,
-          likes: meme.likes || 0,
-          commentCount: meme.commentCount || 0,
-          comments: meme.comments || [],
-          tags: meme.tags || [],
-          isLiked: meme.isLiked || false,
-          isSaved: meme.isSaved || false
-        }));
-        
-        return {
-          data: mappedMemes,
-          pagination: response.data.data.pagination
-        };
-      }
-      
-      // Fallback to the original response if it doesn't match the expected structure
+      const response = await api.get(FEED_ROUTES.CATEGORY, { 
+        params: { ...options, category } 
+      });
       return response.data;
     } catch (error) {
       console.error(`Error fetching memes for category ${category}:`, error);
-      
-      // Fall back to the regular API
-      console.log("Falling back to regular API for category");
-      return this.getMemes({
-        category,
-        sort: options?.sort,
-        page: options?.page,
-        limit: options?.limit
-      });
+      return this.getMemes({ ...options, category });
     }
   },
 };
@@ -969,11 +652,10 @@ export const userService = {
   // Get user profile
   getProfile: async (userId: string) => {
     try {
-      const response = await api.get(`/api/users/${userId}`);
+      const response = await api.get(USER_ROUTES.BY_ID(userId));
       return response.data;
     } catch (error) {
       console.error(`Error fetching user profile ${userId}:`, error);
-      // Return fallback data instead of throwing
       return {
         id: userId,
         username: 'MemeCreator123',
@@ -987,7 +669,7 @@ export const userService = {
   // Update user profile
   updateProfile: async (userId: string, profileData: any) => {
     try {
-      const response = await api.patch(`/api/users/${userId}`, profileData);
+      const response = await api.patch(USER_ROUTES.BY_ID(userId), profileData);
       return response.data;
     } catch (error) {
       console.error(`Error updating user profile ${userId}:`, error);
@@ -998,7 +680,7 @@ export const userService = {
   // Get user's memes
   getUserMemes: async (userId: string) => {
     try {
-      const response = await api.get(`/api/users/${userId}/memes`);
+      const response = await api.get(USER_ROUTES.MEMES(userId));
       return response.data;
     } catch (error) {
       console.error(`Error fetching memes for user ${userId}:`, error);
@@ -1009,7 +691,7 @@ export const userService = {
   // Get saved memes for a user
   getSavedMemes: async (userId: string) => {
     try {
-      const response = await api.get(`/api/users/${userId}/saved`);
+      const response = await api.get(USER_ROUTES.SAVED(userId));
       return response.data;
     } catch (error) {
       console.error(`Error fetching saved memes for user ${userId}:`, error);
@@ -1022,15 +704,10 @@ export const leaderboardService = {
   // Get top memes
   getTopMemes: async (period: string = "all-time") => {
     try {
-      const response = await api.get(`/api/leaderboard/memes?period=${period}`);
-      
-      // Check if the response has the expected structure
-      if (response.data && response.data.success && response.data.data) {
-        return response.data.data;
-      }
-      
-      // Return the data directly if it's already in the expected format
-      return response.data;
+      const response = await api.get(LEADERBOARD_ROUTES.MEMES, {
+        params: { period }
+      });
+      return response.data.success ? response.data.data : response.data;
     } catch (error) {
       console.error(`Error fetching top memes:`, error);
       throw error;
@@ -1040,15 +717,10 @@ export const leaderboardService = {
   // Get top users
   getTopUsers: async (period: string = "all-time") => {
     try {
-      const response = await api.get(`/api/leaderboard/users?period=${period}`);
-      
-      // Check if the response has the expected structure
-      if (response.data && response.data.success && response.data.data) {
-        return response.data.data;
-      }
-      
-      // Return the data directly if it's already in the expected format
-      return response.data;
+      const response = await api.get(LEADERBOARD_ROUTES.USERS, {
+        params: { period }
+      });
+      return response.data.success ? response.data.data : response.data;
     } catch (error) {
       console.error(`Error fetching top users:`, error);
       throw error;
@@ -1060,47 +732,27 @@ export const leaderboardService = {
 export const authService = {
   validateToken: async (): Promise<User> => {
     try {
-      // Add a timestamp to prevent caching
       const timestamp = new Date().getTime();
-      const response = await api.get<ApiResponse>(`/api/auth/validate?t=${timestamp}`);
+      const response = await api.get<ApiResponse>(`${AUTH_ROUTES.VALIDATE}?t=${timestamp}`);
       
       if (!response.data.success) {
-        // Clear invalid tokens from localStorage
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         throw new Error(response.data.error || "Invalid token");
       }
       
       return response.data.data.user;
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error validating token:", error);
-      
-      // Clear invalid tokens from localStorage
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      
-      // Check if it's a network error
-      if (!error.response) {
-        console.log("Network error - using fallback");
-        // Try to get user from localStorage as fallback
-        try {
-          const user = localStorage.getItem('user');
-          if (user) {
-            return JSON.parse(user);
-          }
-        } catch (e) {
-          console.error("Error parsing user from localStorage:", e);
-        }
-      }
-      
       throw error;
     }
   },
   
   login: async (credentials: { email: string; password: string }): Promise<{ token: string; user: User }> => {
     try {
-      // Include credentials to ensure cookies are sent/received
-      const response = await api.post<ApiResponse>('/api/auth/login', credentials, {
+      const response = await api.post<ApiResponse>(AUTH_ROUTES.LOGIN, credentials, {
         withCredentials: true
       });
       
@@ -1108,38 +760,24 @@ export const authService = {
         throw new Error(response.data.error || "Login failed");
       }
       
-      // Store in localStorage for client-side access
-      // The HTTP-only cookie will be used for API requests
       if (response.data.data.token) {
         localStorage.setItem('token', response.data.data.token);
       }
       
       if (response.data.data.user) {
         localStorage.setItem('user', JSON.stringify(response.data.data.user));
-        localStorage.setItem('wasLoggedIn', 'true');
       }
       
       return response.data.data;
     } catch (error: any) {
       console.error("Login error:", error);
-      
-      if (error.response?.data?.error) {
-        throw new Error(error.response.data.error);
-      } else if (error.response?.status === 401) {
-        throw new Error("Invalid email or password");
-      } else if (error.response?.status === 400) {
-        throw new Error("Email and password are required");
-      } else if (!error.response) {
-        throw new Error("Network error. Please check your connection.");
-      }
-      
-      throw new Error(error.message || "Login failed");
+      throw error;
     }
   },
   
   register: async (userData: { username: string; email: string; password: string }) => {
     try {
-      const response = await axios.post<ApiResponse>("/api/auth/register", userData, {
+      const response = await api.post<ApiResponse>(AUTH_ROUTES.REGISTER, userData, {
         withCredentials: true
       });
       
@@ -1168,7 +806,7 @@ export const authService = {
   
   getCurrentUser: async (config: any): Promise<User> => {
     try {
-      const response = await api.get('/api/auth/me', {
+      const response = await api.get(AUTH_ROUTES.ME, {
         ...config,
         withCredentials: true
       });
@@ -1181,41 +819,17 @@ export const authService = {
 
   logout: async () => {
     try {
-      // Call logout endpoint to clear cookies
-      await api.post('/api/auth/logout', {}, { withCredentials: true });
-      
-      // Clear localStorage
+      await api.post(AUTH_ROUTES.LOGOUT, {}, { withCredentials: true });
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      
       return true;
     } catch (error) {
       console.error("Logout error:", error);
-      
-      // Even if the API call fails, clear localStorage
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      
       return false;
     }
   }
-};
-
-// Add a request throttling mechanism
-const requestThrottles = new Map<string, number>();
-
-// Helper function to throttle requests
-const throttleRequest = (key: string, timeMs: number = 5000): boolean => {
-  const now = Date.now();
-  const lastRequest = requestThrottles.get(key) || 0;
-  
-  if (now - lastRequest < timeMs) {
-    console.log(`Request to ${key} throttled (too frequent)`);
-    return false;
-  }
-  
-  requestThrottles.set(key, now);
-  return true;
 };
 
 /**

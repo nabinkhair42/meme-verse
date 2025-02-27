@@ -87,11 +87,10 @@ export default function SearchPage() {
         console.error("Error fetching search results:", err);
         // Fall back to the old API if the new one fails
         return memeService.getMemes({
-          search: searchQuery,
+          page: pageParam,
+          limit: 12,
           category: activeCategory !== 'All' ? activeCategory : '',
           sort: activeSort,
-          page: pageParam,
-          limit: 12
         });
       }
     },

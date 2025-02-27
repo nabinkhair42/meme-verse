@@ -9,10 +9,10 @@ import Link from "next/link";
 import {  MessageCircle, Share2, Bookmark, ThumbsUp } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { Meme } from "@/redux/features/memes/memesSlice";
 import { memeService } from "@/services/api";
 import { useSelector } from "react-redux";
 import { RootState } from "@/redux/store";
+import { Meme } from "@/types";
 
 interface MemeCardProps {
   meme: Meme;
@@ -60,16 +60,16 @@ export function MemeCard({ meme, isLiked, isSaved, ...props }: MemeCardProps) {
       
       // Check cache first
       if (globalLikeCache.has(meme._id)) {
-        setLiked(globalLikeCache.get(meme.id) || false);
+        setLiked(globalLikeCache.get(meme._id) || false);
         return;
       }
       
-      memeService.checkLikeStatus(meme.id)
+      memeService.checkLikeStatus(meme._id)
         .then(response => {
           const isLiked = response?.liked || false;
           setLiked(isLiked);
           // Update cache
-          globalLikeCache.set(meme.id, isLiked);
+          globalLikeCache.set(meme._id, isLiked);
         })
         .catch(error => {
           console.error("Error checking like status:", error);
@@ -83,17 +83,17 @@ export function MemeCard({ meme, isLiked, isSaved, ...props }: MemeCardProps) {
       saveChecked.current = true;
       
       // Check cache first
-      if (globalSaveCache.has(meme.id)) {
-        setSaved(globalSaveCache.get(meme.id) || false);
+      if (globalSaveCache.has(meme._id)) {
+        setSaved(globalSaveCache.get(meme._id) || false);
         return;
       }
       
-      memeService.checkSaveStatus(meme.id)
+      memeService.checkSaveStatus(meme._id)
         .then(response => {
           const isSaved = response?.saved || false;
           setSaved(isSaved);
           // Update cache
-          globalSaveCache.set(meme.id, isSaved);
+          globalSaveCache.set(meme._id, isSaved);
         })
         .catch(error => {
           console.error("Error checking save status:", error);
@@ -118,10 +118,10 @@ export function MemeCard({ meme, isLiked, isSaved, ...props }: MemeCardProps) {
       setLikesCount(prev => newLikedState ? prev + 1 : prev - 1);
       
       // Call API to toggle like
-      const response = await memeService.likeMeme(meme.id);
+      const response = await memeService.likeMeme(meme._id);
       
       // Log the response for debugging
-      console.log(`Like response for meme ${meme.id}:`, response);
+      console.log(`Like response for meme ${meme._id}:`, response);
       
       // Update with actual server response
       const isLiked = response?.liked || false;
@@ -132,7 +132,7 @@ export function MemeCard({ meme, isLiked, isSaved, ...props }: MemeCardProps) {
       setLikesCount(serverLikesCount);
       
       // Update the global cache
-      globalLikeCache.set(meme.id, isLiked);
+      globalLikeCache.set(meme._id, isLiked);
       
       // Notify parent component
       if (props.onLikeToggle) {
@@ -159,7 +159,7 @@ export function MemeCard({ meme, isLiked, isSaved, ...props }: MemeCardProps) {
     
     setIsLoading(true);
     try {
-      const response = await memeService.saveMeme(meme.id);
+      const response = await memeService.saveMeme(meme._id);
       const isSaved = response?.saved || false;
       setSaved(isSaved);
       
@@ -190,7 +190,7 @@ export function MemeCard({ meme, isLiked, isSaved, ...props }: MemeCardProps) {
           <div className="flex items-center gap-3 mb-2">
             <Avatar>
               <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${meme.author}`} />
-              <AvatarFallback>{meme.author[0]}</AvatarFallback>
+              <AvatarFallback>{meme.author?.[0] || 'U'}</AvatarFallback>
             </Avatar>
             <div>
               <Link href={`/profile/${meme.authorId || 'user'}`} className="font-medium hover:underline">
@@ -224,6 +224,7 @@ export function MemeCard({ meme, isLiked, isSaved, ...props }: MemeCardProps) {
                 src={meme.imageUrl}
                 alt={meme.title}
                 fill
+                priority
                 className="object-contain"
                 unoptimized
               />

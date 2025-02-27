@@ -1,6 +1,4 @@
-/**
- * Comment interface - represents a comment on a meme
- */
+
 export interface Comment {
   _id?: string;
   memeId: string;

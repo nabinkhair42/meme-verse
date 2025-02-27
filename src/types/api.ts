@@ -20,7 +20,7 @@ export interface PaginationParams {
  * PaginatedResponse - standard paginated response format
  */
 export interface PaginatedResponse<T> {
-  items: T[];
+  data: T[];
   pagination: {
     total: number;
     page: number;

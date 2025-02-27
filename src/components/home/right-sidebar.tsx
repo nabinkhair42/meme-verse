@@ -13,6 +13,45 @@ import Image from "next/image"
 import Link from "next/link"
 import { useState } from "react"
 
+interface ApiMeme {
+  _id?: string;
+  id?: string;
+  title: string;
+  imageUrl?: string;
+  url?: string;
+  description?: string;
+  userId: string;
+  username?: string;
+  author?: string;
+  userAvatar?: string;
+  createdAt: string;
+  likes?: number;
+  commentCount?: number;
+  tags?: string[];
+  category?: string;
+  type?: 'uploaded' | 'generated';
+  isLiked?: boolean;
+  isSaved?: boolean;
+}
+
+interface TrendingMeme {
+  _id: string;
+  title: string;
+  imageUrl: string;
+  description?: string;
+  userId: string;
+  username: string;
+  userAvatar: string;
+  createdAt: string;
+  likes: number;
+  commentCount: number;
+  tags: string[];
+  category?: string;
+  type: 'uploaded' | 'generated';
+  isLiked: boolean;
+  isSaved: boolean;
+}
+
 export function RightSidebar() {
   const [timeframe, setTimeframe] = useState<"day" | "week" | "month">("week")
 
@@ -21,25 +60,61 @@ export function RightSidebar() {
     status,
     refetch,
     isRefetching,
-  } = useQuery({
-    queryKey: ["trending-memes-sidebar", timeframe],
+  } = useQuery<TrendingMeme[]>({
+    queryKey: ["trending-memes", timeframe],
     queryFn: async () => {
       try {
-        console.log(`Fetching trending memes for sidebar (${timeframe})`)
         const response = await memeService.getTrendingMemes(1, 5, timeframe)
-        console.log("Trending API response:", response)
-        return response
+        console.log(`Raw API response for timeframe ${timeframe}:`, response)
+        
+        // Handle both possible response structures
+        let memesToProcess = [];
+        
+        if (response?.success && response?.data) {
+          // Handle the API response structure
+          memesToProcess = Array.isArray(response.data) ? response.data : [];
+        } else if (response?.data?.memes) {
+          memesToProcess = response.data.memes;
+        } else if (Array.isArray(response)) {
+          memesToProcess = response;
+        }
+        
+        if (memesToProcess.length > 0) {
+          console.log(`Processing ${memesToProcess.length} memes for timeframe ${timeframe}:`, memesToProcess)
+          
+          return memesToProcess.map((meme: ApiMeme) => ({
+            _id: meme._id || meme.id || '',
+            title: meme.title || 'Untitled Meme',
+            imageUrl: meme.imageUrl || meme.url || '',
+            description: meme.description,
+            userId: meme.userId || '',
+            username: meme.username || meme.author || 'Anonymous',
+            userAvatar: meme.userAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${meme.username || meme.author || 'anon'}`,
+            createdAt: meme.createdAt || new Date().toISOString(),
+            likes: typeof meme.likes === 'number' ? meme.likes : 0,
+            commentCount: typeof meme.commentCount === 'number' ? meme.commentCount : 0,
+            tags: Array.isArray(meme.tags) ? meme.tags : [],
+            category: meme.category || 'Uncategorized',
+            type: meme.type || 'uploaded',
+            isLiked: Boolean(meme.isLiked),
+            isSaved: Boolean(meme.isSaved)
+          }))
+        }
+        
+        console.log(`No memes found for timeframe ${timeframe}`)
+        return []
       } catch (error) {
-        console.error("Error using trending API, falling back to regular API:", error)
-        return await memeService.getMemes({
-          sort: "likes",
-          limit: 5,
-        })
+        console.error(`Error fetching trending memes for timeframe ${timeframe}:`, error)
+        throw error
       }
     },
-    retry: 1,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false,
+    staleTime: 1000 * 60 * 5, // Data stays fresh for 5 minutes
+    gcTime: 1000 * 60 * 10, // Keep unused data for 10 minutes
+    refetchOnMount: false // Don't refetch when component remounts
   })
+
+  console.log(`Current trending memes state for ${timeframe}:`, { status, trendingMemes, isRefetching })
 
   const handleRefresh = () => {
     refetch()
@@ -96,8 +171,8 @@ export function RightSidebar() {
             <TrendingSkeleton />
           ) : status === "error" ? (
             <ErrorState onRetry={handleRefresh} />
-          ) : trendingMemes && (trendingMemes.data || trendingMemes.memes)?.length > 0 ? (
-            <TrendingMemesList memes={trendingMemes.data || trendingMemes.memes || []} />
+          ) : trendingMemes?.length > 0 ? (
+            <TrendingMemesList memes={trendingMemes} />
           ) : (
             <EmptyState />
           )}
@@ -166,46 +241,50 @@ function EmptyState() {
   )
 }
 
-function TrendingMemesList({ memes }: { memes: any[] }) {
+function TrendingMemesList({ memes }: { memes: TrendingMeme[] }) {
+  console.log("TrendingMemesList received memes:", memes)
   return (
     <div className="space-y-4 py-2">
-      {memes.slice(0, 5).map((meme: any, index: number) => (
-        <Link href={`/meme/${meme.id}`} key={meme.id} className="group block">
-          <div className="flex gap-3 p-3 rounded-lg transition-all hover:bg-accent group-hover:shadow-sm">
-            <div className="relative h-20 w-20 rounded-md overflow-hidden flex-shrink-0 bg-muted">
-              <Image
-                src={meme.url || meme.imageUrl}
-                alt={meme.title}
-                fill
-                className="object-cover transition-all duration-300 group-hover:scale-105"
-                sizes="80px"
-                unoptimized
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center mb-1">
-                <Badge variant="outline" className="text-xs font-normal px-1.5 py-0">
-                  #{index + 1}
-                </Badge>
+      {memes?.slice(0, 5).map((meme: TrendingMeme, index: number) => {
+        console.log(`Rendering meme ${index}:`, meme)
+        return (
+          <Link href={`/meme/${meme._id}`} key={meme._id} className="group block">
+            <div className="flex gap-3 p-3 rounded-lg transition-all hover:bg-accent group-hover:shadow-sm">
+              <div className="relative h-20 w-20 rounded-md overflow-hidden flex-shrink-0 bg-muted">
+                <Image
+                  src={meme.imageUrl}
+                  alt={meme.title}
+                  fill
+                  className="object-cover transition-all duration-300 group-hover:scale-105"
+                  sizes="80px"
+                  unoptimized
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
-              <h4 className="font-medium text-sm line-clamp-2 group-hover:text-primary transition-colors">
-                {meme.title}
-              </h4>
-              <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
-                <div className="flex items-center">
-                  <Heart className="h-3.5 w-3.5 mr-1 text-red-500" />
-                  <span>{meme.likes?.toLocaleString() || 0}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center mb-1">
+                  <Badge variant="outline" className="text-xs font-normal px-1.5 py-0">
+                    #{index + 1}
+                  </Badge>
                 </div>
-                <div className="flex items-center">
-                  <MessageCircle className="h-3.5 w-3.5 mr-1 text-blue-500" />
-                  <span>{(meme.commentCount || meme.comments?.length || 0).toLocaleString()}</span>
+                <h4 className="font-medium text-sm line-clamp-2 group-hover:text-primary transition-colors">
+                  {meme.title}
+                </h4>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
+                  <div className="flex items-center">
+                    <Heart className="h-3.5 w-3.5 mr-1 text-red-500" />
+                    <span>{meme.likes?.toLocaleString() || 0}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <MessageCircle className="h-3.5 w-3.5 mr-1 text-blue-500" />
+                    <span>{meme.commentCount?.toLocaleString() || 0}</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </Link>
-      ))}
+          </Link>
+        )
+      })}
     </div>
   )
 }

@@ -1,16 +1,11 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { userService } from "@/services/api";
+import { User } from "@/types";
 
-interface UserProfile {
-  username: string;
-  bio: string;
-  avatar: string;
-  joinDate: string;
-}
 
 interface UserState {
-  profile: UserProfile;
+  profile: User;
   likedMemes: string[];
   savedMemes: string[];
   uploadedMemes: string[];
@@ -24,7 +19,8 @@ const initialState: UserState = {
     username: 'MemeCreator123',
     bio: 'Meme enthusiast and creator. I make memes about programming, cats, and everything in between.',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=user123',
-    joinDate: '2023-01-15T00:00:00Z'
+    joinDate: '2023-01-15T00:00:00Z',
+    email: ""
   },
   likedMemes: ['1', '3', '5'],
   savedMemes: ['2', '4'],
@@ -50,7 +46,6 @@ export const fetchUserProfile = createAsyncThunk(
       return response;
     } catch (err) {
       return rejectWithValue('Failed to fetch user profile');
-      console.log(err);
     }
   }
 );
@@ -82,7 +77,7 @@ const userSlice = createSlice({
     addUploadedMeme: (state, action: PayloadAction<string>) => {
       state.uploadedMemes.push(action.payload);
     },
-    updateProfile: (state, action: PayloadAction<Partial<UserProfile>>) => {
+    updateProfile: (state, action: PayloadAction<Partial<User>>) => {
       state.profile = { ...state.profile, ...action.payload };
     }
   },

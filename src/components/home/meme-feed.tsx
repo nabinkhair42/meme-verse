@@ -13,7 +13,7 @@ import { memeService } from "@/services/api";
 import { MemeCard } from "@/components/meme-card";
 import { useSelector } from "react-redux";
 import { RootState } from "@/redux/store";
-import { Meme } from "@/redux/features/memes/memesSlice";
+import { Meme } from "@/types";
 
 
 export function MemeFeed() {
@@ -36,7 +36,6 @@ export function MemeFeed() {
     hasNextPage,
     isFetchingNextPage,
     status,
-    error
   } = useInfiniteQuery({
     queryKey: ['feed-memes', activeTab],
     queryFn: async ({ pageParam = 1 }) => {
@@ -44,20 +43,31 @@ export function MemeFeed() {
         try {
           // Use the new trending API for the trending tab
           console.log(`Fetching trending memes for feed, page: ${pageParam}`);
-          return await memeService.getTrendingMemes(pageParam, 10, 'week');
+          const trendingResponse = await memeService.getTrendingMemes(pageParam, 10, 'week');
+          
+          // Add additional logging to help debug
+          console.log('Trending response:', trendingResponse);
+          
+          // Ensure we have valid data
+          if (!trendingResponse || !trendingResponse.data) {
+            console.error("Invalid response from trending API:", trendingResponse);
+            throw new Error("Invalid trending API response");
+          }
+          
+          return trendingResponse;
         } catch (error) {
-          console.error("Error using trending API, falling back to regular API:", error);
-          // Fall back to the regular API if the trending API fails
+          console.error("Error using trending API:", error);
+          // Fall back to the regular API with trending parameters
           return await memeService.getMemes({
-            sort: 'likes',
+            sort: 'trending', 
             page: pageParam,
             limit: 10
           });
         }
       } else {
-        // Use the regular API for the "for you" tab
+        // Use the regular API for the "for you" tab with personalized sorting
         return await memeService.getMemes({
-          sort: 'newest',
+          sort: 'personalized', // Changed from 'newest' to 'personalized'
           page: pageParam,
           limit: 10
         });
@@ -124,10 +134,9 @@ export function MemeFeed() {
   const handleLikeToggle = (meme: Meme, newState: boolean) => {
     if (!meme || !meme.id) return;
     
-    console.log(`Updating like status for meme ${meme.id} to ${newState}, likes: ${meme.likes}`);
     
     // Update the liked status in the local state
-    setLikedMemes(prev => ({ ...prev, [meme.id]: newState }));
+    setLikedMemes(prev => ({ ...prev, [meme._id]: newState }));
     
     // Update the meme in the allMemes array to reflect the new like count
     if (data) {
@@ -166,7 +175,7 @@ export function MemeFeed() {
   // Handle save toggle
   const handleSaveToggle = (meme: Meme, newState: boolean) => {
     if (!meme || !meme.id) return;
-    setSavedMemes(prev => ({ ...prev, [meme.id]: newState }));
+    setSavedMemes(prev => ({ ...prev, [meme._id]: newState }));
   };
   
   // Flatten all memes from all pages
@@ -283,8 +292,6 @@ export function MemeFeed() {
       </TabsContent>
       
       <TabsContent value="trending" className="mt-0">
-        {/* Same content structure as "for-you" tab but with trending memes */}
-        {/* This is already handled by the query parameter in the useInfiniteQuery hook */}
         {status === 'pending' ? (
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (

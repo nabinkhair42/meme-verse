@@ -22,17 +22,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const token = localStorage.getItem('token');
         
-        // Log token for debugging
-        console.log(`Token in localStorage: ${token ? 'exists' : 'missing'}`);
-        
+
         if (token) {
           try {
-            console.log('Validating token with server...');
             const user = await authService.validateToken();
-            console.log('Token validation successful:', user);
             dispatch(setUser(user));
           } catch (error) {
-            console.error("Token validation failed:", error);
             
             // Clear invalid token
             localStorage.removeItem('token');
@@ -47,11 +42,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.removeItem('wasLoggedIn');
           }
         } else {
-          console.log('No token found, user is not authenticated');
           dispatch(clearUser());
         }
       } catch (error) {
-        console.error("Auth provider error:", error);
         dispatch(clearUser());
       } finally {
         setIsValidating(false);
