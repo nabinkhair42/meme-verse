@@ -91,13 +91,38 @@ export function Navbar() {
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('token');
       const storedUser = localStorage.getItem('user');
+      
+      // If we have a token and user data but not authenticated in Redux
+      if (token && storedUser && !isAuthenticated) {
+        // Parse the stored user data
+        try {
+          const userData = JSON.parse(storedUser);
+          // You might want to dispatch an action to update the auth state
+          // This depends on your auth slice structure
+        } catch (error) {
+          console.error('Error parsing stored user data:', error);
+        }
+      }
     }
   }, [isAuthenticated]);
   
-  const handleLogout = () => {
-    dispatch(logout());
-    router.push("/");
+  const handleLogout = async () => {
+    try {
+      // Clear local storage first
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      // Then dispatch logout action
+      await dispatch(logout());
+      router.push("/");
+    } catch (error) {
+      console.error('Error during logout:', error);
+    }
   };
+  
+  // Get user data with fallback
+  const userDisplayName = user?.username || 'User';
+  const userAvatar = user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?._id || 'default'}`;
+  const userInitial = userDisplayName[0]?.toUpperCase() || 'U';
   
   // Only render the full component after mounting on the client
   if (!mounted) {
@@ -248,16 +273,16 @@ export function Navbar() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                   <Avatar className="h-8 w-8 transition-transform hover:scale-110">
-                    <AvatarImage src={user?.avatar} alt={user?.username} />
-                    <AvatarFallback>{user?.username?.[0]?.toUpperCase()}</AvatarFallback>
+                    <AvatarImage src={userAvatar} alt={userDisplayName} />
+                    <AvatarFallback>{userInitial}</AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>
                   <div className="flex flex-col space-y-1">
-                    {user?.username && (
-                      <p className="font-medium text-sm">{user.username}</p>
+                    {userDisplayName && (
+                      <p className="font-medium text-sm">{userDisplayName}</p>
                     )}
                     {user?.email && (
                       <p className="truncate text-xs text-muted-foreground">

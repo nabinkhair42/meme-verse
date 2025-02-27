@@ -1,7 +1,6 @@
 "use client";
 
 import { ProtectedRoute } from "@/components/auth/protected-route";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { addMeme } from "@/redux/features/memes/memesSlice";
 import { addGeneratedMeme } from "@/redux/features/user/userSlice";
 import { AppDispatch, RootState } from "@/redux/store";
@@ -16,6 +15,11 @@ import { MemeEditor } from "./_components/meme-editor";
 import { MemePreview } from "./_components/meme-preview";
 import { TemplateSelector } from "./_components/template-selector";
 import { Meme as ReduxMeme } from "@/types/meme";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Type guard function to check if an object is a MemeTemplate
 function isValidTemplate(template: any): template is MemeTemplate {
@@ -432,105 +436,130 @@ export default function GeneratePage() {
 
   return (
     <ProtectedRoute>
-      <div className="container max-w-7xl mx-auto py-8 px-4 sm:px-6">
-        <div className="text-center mb-8 bg-gradient-to-r from-primary/10 to-secondary/10 p-8 rounded-xl shadow-sm">
-          <h1 className="text-4xl font-bold tracking-tight mb-3">
-            Create Your Meme
-          </h1>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Select a template, customize with text, and share your creation with
-            the world
-          </p>
-        </div>
+      <div className="container mx-auto p-4 min-h-screen">
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Left side - Template Selection */}
+          <div className="w-full lg:w-1/3 lg:max-w-md">
+            <TemplateSelector
+              templates={filteredTemplates}
+              selectedTemplate={selectedTemplate}
+              isLoading={isLoadingTemplates}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              onSelectTemplate={handleSelectTemplate}
+            />
+          </div>
 
-        <div className="relative mb-10">
-          <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 rounded-xl -z-10"></div>
-          <Tabs defaultValue="template" className="w-full">
-            <TabsList className="grid grid-cols-3 mb-8 w-full max-w-3xl mx-auto p-1 bg-background/80 backdrop-blur-sm rounded-xl shadow-md">
-              <TabsTrigger
-                value="template"
-                className="text-base py-4 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200"
-              >
-                <span className="flex items-center gap-2">
-                  <span className="hidden sm:inline-flex size-6 rounded-full bg-primary/20 text-primary items-center justify-center font-bold">
-                    1
-                  </span>
-                  Choose Template
-                </span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="editor"
-                disabled={!selectedTemplate}
-                className="text-base py-4 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200"
-              >
-                <span className="flex items-center gap-2">
-                  <span className="hidden sm:inline-flex size-6 rounded-full bg-primary/20 text-primary items-center justify-center font-bold">
-                    2
-                  </span>
-                  Add Text
-                </span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="preview"
-                disabled={!generatedMeme}
-                className="text-base py-4 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200"
-              >
-                <span className="flex items-center gap-2">
-                  <span className="hidden sm:inline-flex size-6 rounded-full bg-primary/20 text-primary items-center justify-center font-bold">
-                    3
-                  </span>
-                  Preview & Save
-                </span>
-              </TabsTrigger>
-            </TabsList>
+          {/* Right side - Editor and Preview */}
+          <div className="w-full lg:w-2/3 space-y-6">
+            {selectedTemplate ? (
+              <>
+                {/* Editor Section */}
+                <div className="rounded-lg border-2 p-6 space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-2xl font-bold">Customize Your Meme</h2>
+                    <Button onClick={addTextElement}>Add Text</Button>
+                  </div>
 
-            <TabsContent value="template">
-              <TemplateSelector
-                templates={templates}
-                selectedTemplate={selectedTemplate}
-                isLoading={isLoadingTemplates}
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
-                onSelectTemplate={handleSelectTemplate}
-              />
-            </TabsContent>
+                  <div className="grid gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="title">Title</Label>
+                      <Input
+                        id="title"
+                        placeholder="Give your meme a title..."
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                      />
+                    </div>
 
-            <TabsContent value="editor">
-              {selectedTemplate && (
-                <MemeEditor
-                  selectedTemplate={selectedTemplate}
-                  textElements={textElements}
-                  selectedTextId={selectedTextId}
-                  isGenerating={isGenerating}
-                  onTextSelect={setSelectedTextId}
-                  onTextUpdate={updateTextElement}
-                  onTextRemove={removeTextElement}
-                  onTextAdd={addTextElement}
-                  onGenerate={generateMeme}
-                  imageRef={imageRef}
-                  canvasRef={canvasRef}
-                  onImageLoad={handleImageLoad}
-                  onImageError={handleImageError}
-                />
-              )}
-            </TabsContent>
+                    <div className="space-y-2">
+                      <Label htmlFor="category">Category</Label>
+                      <Select value={category} onValueChange={setCategory}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Generated">Generated</SelectItem>
+                          <SelectItem value="Funny">Funny</SelectItem>
+                          <SelectItem value="Trending">Trending</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-            <TabsContent value="preview">
-              {generatedMeme && (
-                <MemePreview
-                  generatedMeme={generatedMeme}
-                  title={title}
-                  category={category}
-                  isPublic={isPublic}
-                  isSaving={isSaving}
-                  onTitleChange={setTitle}
-                  onCategoryChange={setCategory}
-                  onIsPublicChange={setIsPublic}
-                  onSave={handleSaveMeme}
-                />
-              )}
-            </TabsContent>
-          </Tabs>
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="public"
+                        checked={isPublic}
+                        onCheckedChange={setIsPublic}
+                      />
+                      <Label htmlFor="public">Make meme public</Label>
+                    </div>
+                  </div>
+
+                  <MemeEditor
+                    selectedTemplate={selectedTemplate}
+                    textElements={textElements}
+                    selectedTextId={selectedTextId}
+                    isGenerating={isGenerating}
+                    onTextSelect={setSelectedTextId}
+                    onTextUpdate={updateTextElement}
+                    onTextRemove={removeTextElement}
+                    onTextAdd={addTextElement}
+                    onGenerate={generateMeme}
+                    imageRef={imageRef}
+                    canvasRef={canvasRef}
+                    onImageLoad={handleImageLoad}
+                    onImageError={handleImageError}
+                  />
+
+                  <div className="flex justify-end gap-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedTemplate(null);
+                        setTextElements([]);
+                        setGeneratedMeme(null);
+                      }}
+                    >
+                      Start Over
+                    </Button>
+                    <Button
+                      onClick={generateMeme}
+                      disabled={isGenerating}
+                    >
+                      {isGenerating ? "Generating..." : "Generate Meme"}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Preview Section */}
+                {generatedMeme && (
+                  <div className="rounded-lg border-2 p-6 space-y-4">
+                    <h2 className="text-2xl font-bold">Preview</h2>
+                    <MemePreview
+                      generatedMeme={generatedMeme}
+                      title={title}
+                      category={category}
+                      isPublic={isPublic}
+                      isSaving={isSaving}
+                      onTitleChange={setTitle}
+                      onCategoryChange={setCategory}
+                      onIsPublicChange={setIsPublic}
+                      onSave={handleSaveMeme}
+                    />
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="rounded-lg border-2 p-12 text-center">
+                <h2 className="text-2xl font-bold mb-4">Start Creating Your Meme</h2>
+                <p className="text-muted-foreground mb-8">
+                  Choose a template from the left to begin customizing your meme
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </ProtectedRoute>

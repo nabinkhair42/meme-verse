@@ -6,14 +6,17 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import Link from "next/link";
 import { Home, Bookmark, User, TrendingUp, Clock, Settings, Search, Hash } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { useSelector } from "react-redux";
+import { RootState } from "@/redux/store";
 
-interface LeftSidebarProps {
-  isAuthenticated: boolean;
-  user: any;
-}
-
-export function LeftSidebar({ isAuthenticated, user }: LeftSidebarProps) {
+export function LeftSidebar() {
   const pathname = usePathname();
+  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
+  
+  // Get user data with fallback
+  const userDisplayName = user?.username || 'User';
+  const userAvatar = user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?._id || 'default'}`;
+  const userInitial = userDisplayName[0]?.toUpperCase() || 'U';
   
   // Popular categories
   const categories = [
@@ -38,12 +41,12 @@ export function LeftSidebar({ isAuthenticated, user }: LeftSidebarProps) {
           {isAuthenticated ? (
             <div className="flex items-center gap-3 mb-6">
               <Avatar className="h-12 w-12">
-                <AvatarImage src={user?.avatar} />
-                <AvatarFallback>{user?.username?.[0]}</AvatarFallback>
+                <AvatarImage src={userAvatar} alt={userDisplayName} />
+                <AvatarFallback>{userInitial}</AvatarFallback>
               </Avatar>
               <div>
-                <h3 className="font-medium">{user?.username}</h3>
-                <p className="text-sm text-muted-foreground">@{user?.username?.toLowerCase()}</p>
+                <h3 className="font-medium">{userDisplayName}</h3>
+                <p className="text-sm text-muted-foreground">@{userDisplayName.toLowerCase()}</p>
               </div>
             </div>
           ) : (

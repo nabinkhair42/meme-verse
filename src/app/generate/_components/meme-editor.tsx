@@ -63,7 +63,7 @@ export function MemeEditor({
   };
 
   return (
-    <Card className="border-2 shadow-md bg-background/50 backdrop-blur-sm">
+    <Card className="border-2 shadow-md">
       <CardHeader className="border-b pb-4">
         <CardTitle className="text-2xl text-center font-bold">
           Customize Your Meme
@@ -73,7 +73,7 @@ export function MemeEditor({
       <CardContent className="pt-6">
         <div className="grid gap-8 lg:grid-cols-2">
           <div className="space-y-6">
-            <div className="relative aspect-square max-w-[500px] mx-auto overflow-hidden rounded-lg border-2 shadow-lg bg-muted/10">
+            <div className="relative aspect-square max-w-[500px] mx-auto overflow-hidden rounded-lg border-2 shadow-lg ">
               <DndContext
                 sensors={sensors}
                 modifiers={[restrictToParentElement]}

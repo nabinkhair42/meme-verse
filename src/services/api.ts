@@ -57,17 +57,23 @@ export const imgflipService = {
       console.log("Fetching templates from API...");
       
       try {
-        const response = await api.get(MEME_ROUTES.TEMPLATES);
+        const response = await fetch("https://api.imgflip.com/get_memes");
+        const data = await response.json();
         
-        if (!response.data || !response.data.templates || !Array.isArray(response.data.templates)) {
-          console.error("Invalid response format:", response.data);
+        if (!data.success || !data.data || !data.data.memes) {
+          console.error("Invalid response format:", data);
           return fallbackTemplates;
         }
         
         // Validate templates
-        const templates = response.data.templates;
+        const templates = data.data.memes;
         const validTemplates = templates.filter((template: any) => {
-          return template && typeof template === 'object' && template.id && template.imageUrl;
+          return template && 
+            typeof template === 'object' && 
+            template.id && 
+            template.url && 
+            template.url.startsWith('http') &&
+            template.name;
         });
         
         if (validTemplates.length === 0) {
@@ -83,34 +89,7 @@ export const imgflipService = {
       }
     } catch (error) {
       console.error("Error fetching meme templates:", error);
-      
-      // Return fallback templates instead of throwing
-      return [
-        {
-          id: "181913649",
-          name: "Drake Hotline Bling",
-          url: "https://i.imgflip.com/30b1gx.jpg",
-          width: 1200,
-          height: 1200,
-          box_count: 2
-        },
-        {
-          id: "87743020",
-          name: "Two Buttons",
-          url: "https://i.imgflip.com/1g8my4.jpg",
-          width: 600,
-          height: 908,
-          box_count: 3
-        },
-        {
-          id: "112126428",
-          name: "Distracted Boyfriend",
-          url: "https://i.imgflip.com/1ur9b0.jpg",
-          width: 1200,
-          height: 800,
-          box_count: 3
-        }
-      ];
+      return fallbackTemplates;
     }
   },
 
@@ -982,4 +961,4 @@ export const memeGenerationService = {
       throw error;
     }
   }
-}; 
+};
