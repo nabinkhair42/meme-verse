@@ -65,10 +65,9 @@ export default function TrendingPage() {
         console.error("Error using trending API, falling back to regular API:", error);
         // Fall back to the regular API if the trending API fails
         return await memeService.getMemes({
-          sort: 'likes',
-          period: activeTab,
           page: pageParam,
-          limit: 12
+          limit: 12,
+          sort: 'likes',
         });
       }
     },

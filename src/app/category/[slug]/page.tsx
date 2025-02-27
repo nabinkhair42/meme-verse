@@ -8,14 +8,13 @@ import { RootState } from "@/redux/store";
 import { memeService } from "@/services/api";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import { Hash, Loader2, Clock, TrendingUp } from "lucide-react";
+import { Clock, Hash, Loader2, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { FaFire } from "react-icons/fa";
 import { useInView } from "react-intersection-observer";
 import { useSelector } from "react-redux";
-import { FaFire } from "react-icons/fa";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function CategoryPage() {
   const params = useParams();
@@ -42,7 +41,6 @@ export default function CategoryPage() {
     hasNextPage,
     isFetchingNextPage,
     status,
-    error,
     refetch
   } = useInfiniteQuery({
     queryKey: ['category-memes', slug, activeSort],

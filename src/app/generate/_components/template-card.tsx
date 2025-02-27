@@ -21,16 +21,25 @@ export function TemplateCard({ template, isSelected, onClick }: TemplateCardProp
   return (
     <motion.div
       variants={variants.item}
-      className={`relative cursor-pointer rounded-lg border-2 p-2 transition-all hover:shadow-lg
-        ${isSelected ? 'border-primary' : 'border-transparent'}`}
+      className={`relative cursor-pointer rounded-lg border-2 p-2 transition-all duration-300
+        ${isSelected 
+          ? 'border-primary ring-2 ring-primary/20 bg-primary/5 shadow-md' 
+          : 'border-border/40 hover:border-primary/40 hover:shadow-lg hover:bg-muted/30'}`}
       onClick={onClick}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
     >
-      <div className="relative aspect-square overflow-hidden rounded-lg">
+      <div className="relative aspect-square overflow-hidden rounded-lg bg-muted/50">
+        {isSelected && (
+          <div className="absolute top-2 right-2 z-10 bg-primary text-primary-foreground text-xs font-bold px-2 py-1 rounded-full shadow-sm">
+            Selected
+          </div>
+        )}
         <Image
           src={template.url}
           alt={template.name}
           fill
-          className="object-cover"
+          className={`object-contain transition-all duration-300 ${isSelected ? 'scale-105' : ''}`}
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           priority={isSelected}
           onError={(e) => {
@@ -40,7 +49,10 @@ export function TemplateCard({ template, isSelected, onClick }: TemplateCardProp
           }}
         />
       </div>
-      <p className="mt-2 text-sm font-medium truncate">{template.name}</p>
+      <div className="mt-2 flex flex-col">
+        <p className="text-sm font-medium truncate">{template.name}</p>
+        <p className="text-xs text-muted-foreground truncate">Click to select</p>
+      </div>
     </motion.div>
   );
-} 
+}

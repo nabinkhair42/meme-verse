@@ -29,9 +29,9 @@ const globalLikeCache = new Map<string, boolean>();
 const globalSaveCache = new Map<string, boolean>();
 
 // Debounce function at module level
-function debounce(func: Function, wait: number) {
+function debounce<T extends (...args: any[]) => void>(func: T, wait: number): (...args: Parameters<T>) => void {
   let timeout: NodeJS.Timeout;
-  return function(...args: any[]) {
+  return (...args: Parameters<T>) => {
     clearTimeout(timeout);
     timeout = setTimeout(() => func(...args), wait);
   };
@@ -75,7 +75,7 @@ export function MemeCard({ meme, isLiked, isSaved, ...props }: MemeCardProps) {
           console.error("Error checking like status:", error);
         });
     }
-  }, [isAuthenticated, meme.id]);
+  }, [isAuthenticated, meme.id, meme._id]);
   
   // Check save status only once when component mounts
   useEffect(() => {
@@ -99,7 +99,7 @@ export function MemeCard({ meme, isLiked, isSaved, ...props }: MemeCardProps) {
           console.error("Error checking save status:", error);
         });
     }
-  }, [isAuthenticated, meme.id]);
+  }, [isAuthenticated, meme.id, meme._id]);
   
   const [isInteracting, setIsInteracting] = useState(false);
   

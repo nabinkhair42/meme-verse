@@ -10,7 +10,7 @@ function generateMockMemes(count: number, period: string, userId?: string) {
     const now = new Date();
     
     // Adjust date range based on period
-    let minDate = new Date(now);
+    const minDate = new Date(now);
     if (period === 'day') {
         minDate.setDate(now.getDate() - 1);
     } else if (period === 'week') {

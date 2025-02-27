@@ -35,7 +35,7 @@ export async function GET(
     
     
     return NextResponse.json(
-      successResponse({ liked: isLiked }),
+      successResponse(isLiked, "Liked meme status fetched successfully", 200),
       { status: 200 }
     );
   } catch (error) {
@@ -81,7 +81,7 @@ export async function POST(
     const likes = await LikedMemeModel.countLikes(memeId);
     
     return NextResponse.json(
-      successResponse({ liked, likes }),
+      successResponse(liked, "Liked meme status fetched successfully", 200),
       { status: 200 }
     );
   } catch (error) {

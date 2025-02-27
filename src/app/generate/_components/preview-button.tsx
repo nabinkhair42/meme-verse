@@ -11,14 +11,14 @@ export function PreviewButton({ onClick, isGenerating, className }: PreviewButto
   return (
     <Button 
       onClick={onClick} 
-      className={className}
+      className={`${className} bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary transition-all duration-300`}
       disabled={isGenerating}
       size="lg"
     >
       {isGenerating ? (
         <>
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-          Generating...
+          <span className="animate-pulse">Creating magic...</span>
         </>
       ) : (
         <>
@@ -28,4 +28,4 @@ export function PreviewButton({ onClick, isGenerating, className }: PreviewButto
       )}
     </Button>
   );
-} 
+}

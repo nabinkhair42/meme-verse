@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
       const { password, ...userWithoutPassword } = user;
       
       return NextResponse.json(
-        successResponse({ user: userWithoutPassword }, "Token is valid"),
+        successResponse(userWithoutPassword, "Token is valid", 200),
         { status: 200 }
       );
     } catch (error) {

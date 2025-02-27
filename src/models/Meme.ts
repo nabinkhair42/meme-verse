@@ -101,7 +101,7 @@ export class MemeModel {
     
     // Add comments to the meme data if it exists
     if (memeData) {
-      // @ts-ignore - Add comments to the meme data
+      // @ts-expect-error - Add comments to the meme data
       memeData.comments = comments;
     }
     

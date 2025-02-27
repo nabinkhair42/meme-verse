@@ -30,15 +30,7 @@ export async function GET(
     const totalPages = Math.ceil(total / limit);
     
     return NextResponse.json(
-      successResponse({
-        comments,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages
-        }
-      }),
+      successResponse(comments, "Comments fetched successfully", 200),
       { status: 200 }
     );
   } catch (error) {
@@ -94,7 +86,7 @@ export async function POST(
     );
     
     return NextResponse.json(
-      successResponse(newComment, "Comment added successfully"),
+      successResponse(newComment, "Comment added successfully", 201),
       { status: 201 }
     );
   } catch (error) {

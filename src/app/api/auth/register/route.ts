@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       }
       
       return NextResponse.json(
-        successResponse(newUser, "User registered successfully"),
+        successResponse(newUser, "User registered successfully", 201),
         { status: 201 }
       );
     } catch (error: any) {

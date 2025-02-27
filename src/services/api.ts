@@ -1,6 +1,5 @@
 import { ApiResponse } from "@/lib/apiResponse";
 import axios from "axios";
-import { toast } from "sonner";
 import { 
   GenerateMemeInput, 
   GenerateMemeResponse, 

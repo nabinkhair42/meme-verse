@@ -63,14 +63,17 @@ export function MemeEditor({
   };
 
   return (
-    <Card className="border-2">
-      <CardHeader>
-        <CardTitle className="text-2xl text-center">Customize Meme</CardTitle>
+    <Card className="border-2 shadow-md bg-background/50 backdrop-blur-sm">
+      <CardHeader className="border-b pb-4">
+        <CardTitle className="text-2xl text-center font-bold">
+          Customize Your Meme
+        </CardTitle>
+        <p className="text-center text-muted-foreground mt-2">Drag text to position, customize colors and size</p>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         <div className="grid gap-8 lg:grid-cols-2">
           <div className="space-y-6">
-            <div className="relative aspect-square max-w-[500px] mx-auto overflow-hidden rounded-lg border-2 shadow-lg">
+            <div className="relative aspect-square max-w-[500px] mx-auto overflow-hidden rounded-lg border-2 shadow-lg bg-muted/10">
               <DndContext
                 sensors={sensors}
                 modifiers={[restrictToParentElement]}
@@ -130,8 +133,8 @@ export function MemeEditor({
             </div>
           </div>
           
-          <div className="space-y-4">
-            <ScrollArea className="h-[600px] rounded-lg border-2 p-6">
+          <div className="space-y-4 max-w-[500px] mx-auto w-full">
+            <ScrollArea className="h-[600px] rounded-lg border-2 p-6 shadow-sm">
               {textElements.length === 0 ? (
                 <div className="flex h-full items-center justify-center text-center text-muted-foreground">
                   <div className="space-y-4">
@@ -167,4 +170,4 @@ export function MemeEditor({
       </CardContent>
     </Card>
   );
-} 
+}

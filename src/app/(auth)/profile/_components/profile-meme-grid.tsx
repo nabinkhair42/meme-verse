@@ -107,7 +107,7 @@ export default function ProfileMemeGrid({ userId, type }: ProfileMemeGridProps) 
       setIsLoading(false);
       if (isInitial) setIsInitialLoad(false);
     }
-  }, [userId, type]);
+  }, [userId, type, isLoading]);
   
   useEffect(() => {
     setMemes([]);

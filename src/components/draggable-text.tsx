@@ -86,12 +86,12 @@ export default function DraggableText({
       `rotate(${element.rotation}deg)`,
     cursor: 'move',
     userSelect: 'none',
-    padding: '4px',
-    border: isSelected ? '2px dashed #3b82f6' : 'none',
-    borderRadius: '4px',
-    backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-    boxShadow: isSelected ? '0 0 0 4px rgba(59, 130, 246, 0.2)' : 'none',
-    transition: 'box-shadow 0.2s, border 0.2s, background-color 0.2s',
+    padding: '8px',
+    border: isSelected ? '2px dashed #3b82f6' : '1px dashed transparent',
+    borderRadius: '6px',
+    backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+    boxShadow: isSelected ? '0 0 0 4px rgba(59, 130, 246, 0.2), 0 4px 12px rgba(0, 0, 0, 0.1)' : 'none',
+    transition: 'box-shadow 0.3s, border 0.3s, background-color 0.3s, transform 0.2s',
     fontFamily: 'Impact, sans-serif',
     textAlign: 'center',
     width: 'auto',
@@ -131,4 +131,4 @@ export default function DraggableText({
       )}
     </div>
   );
-} 
+}

@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     
     // Set HTTP-only cookie for better security
     const response = NextResponse.json(
-      successResponse({ user, token }, "Login successful"),
+      successResponse(user, "Login successful", 200),
       { status: 200 }
     );
     
