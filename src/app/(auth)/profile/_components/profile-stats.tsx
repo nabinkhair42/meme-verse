@@ -5,8 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Heart, ImageIcon, MessageSquare, TrendingUp, Award, Trophy } from "lucide-react";
 import { toast } from "sonner";
-import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
 
 interface ProfileStatsProps {
   userId: string;
@@ -87,14 +85,12 @@ export default function ProfileStats({ userId }: ProfileStatsProps) {
   
   if (isLoading) {
     return (
-      <motion.div 
+      <div 
         className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8"
-        variants={container}
-        initial="hidden"
-        animate="show"
+
       >
         {[...Array(3)].map((_, i) => (
-          <motion.div key={i} variants={item}>
+          <div key={i}>
             <Card className="overflow-hidden border-border/40">
               <CardHeader className="pb-2">
                 <Skeleton className="h-6 w-24" />
@@ -104,18 +100,16 @@ export default function ProfileStats({ userId }: ProfileStatsProps) {
                 <Skeleton className="h-4 w-32 mt-2" />
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
         ))}
-      </motion.div>
+      </div>
     );
   }
   
   if (error) {
     return (
-      <motion.div 
+      <div 
         className="mt-8 p-6 text-center bg-destructive/5 rounded-lg"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
       >
         <p className="text-destructive mb-2">{error}</p>
         <button
@@ -124,7 +118,7 @@ export default function ProfileStats({ userId }: ProfileStatsProps) {
         >
           Refresh page
         </button>
-      </motion.div>
+      </div>
     );
   }
   
@@ -138,14 +132,11 @@ export default function ProfileStats({ userId }: ProfileStatsProps) {
   };
   
   return (
-    <motion.div 
+      <div 
       className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8"
-      variants={container}
-      initial="hidden"
-      animate="show"
     >
-      <motion.div variants={item}>
-        <Card className="overflow-hidden border-border/40 hover:shadow-md transition-all group">
+      <div>
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center text-muted-foreground group-hover:text-foreground transition-colors">
               <ImageIcon className="h-4 w-4 mr-2 text-primary" />
@@ -153,14 +144,11 @@ export default function ProfileStats({ userId }: ProfileStatsProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <motion.p 
+            <p 
               className="text-3xl font-bold tracking-tight"
-              initial={{ scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", stiffness: 200, damping: 10 }}
             >
               {stats.memes}
-            </motion.p>
+            </p>
             {stats.topCategory && (
               <p className="text-sm text-muted-foreground mt-1 flex items-center">
                 <Trophy className="h-4 w-4 mr-1 text-primary" />
@@ -169,9 +157,9 @@ export default function ProfileStats({ userId }: ProfileStatsProps) {
             )}
           </CardContent>
         </Card>
-      </motion.div>
+      </div>
       
-      <motion.div variants={item}>
+      <div>
         <Card className="overflow-hidden border-border/40 hover:shadow-md transition-all group">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center text-muted-foreground group-hover:text-foreground transition-colors">
@@ -180,14 +168,11 @@ export default function ProfileStats({ userId }: ProfileStatsProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <motion.p 
+            <p 
               className="text-3xl font-bold tracking-tight"
-              initial={{ scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", stiffness: 200, damping: 10 }}
             >
               {stats.likes}
-            </motion.p>
+            </p>
             {stats.mostLikedMeme && (
               <p className="text-sm text-muted-foreground mt-1 flex items-center">
                 <Award className="h-4 w-4 mr-1 text-primary" />
@@ -196,9 +181,9 @@ export default function ProfileStats({ userId }: ProfileStatsProps) {
             )}
           </CardContent>
         </Card>
-      </motion.div>
+      </div>
       
-      <motion.div variants={item}>
+      <div>
         <Card className="overflow-hidden border-border/40 hover:shadow-md transition-all group">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center text-muted-foreground group-hover:text-foreground transition-colors">
@@ -207,21 +192,18 @@ export default function ProfileStats({ userId }: ProfileStatsProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <motion.p 
+            <p 
               className="text-3xl font-bold tracking-tight"
-              initial={{ scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", stiffness: 200, damping: 10 }}
             >
               {calculateEngagementRate()}
-            </motion.p>
+            </p>
             <p className="text-sm text-muted-foreground mt-1 flex items-center">
               <MessageSquare className="h-4 w-4 mr-1 text-primary" />
               Interactions per meme
             </p>
           </CardContent>
         </Card>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 } 
