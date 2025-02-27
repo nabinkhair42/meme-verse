@@ -8,14 +8,37 @@ import { Home, Bookmark, User, TrendingUp, Clock, Settings, Search, Hash } from 
 import { usePathname } from "next/navigation";
 import { useSelector } from "react-redux";
 import { RootState } from "@/redux/store";
+import { useEffect, useState } from "react";
+import { authService } from "@/services/authService";
+
+interface User {
+  _id: string;
+  username: string;
+  email: string;
+  avatar?: string;
+}
 
 export function LeftSidebar() {
   const pathname = usePathname();
   const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
+  const [mounted, setMounted] = useState(false);
+  const [localUser, setLocalUser] = useState<User | null>(null);
   
-  // Get user data with fallback
-  const userDisplayName = user?.username || 'User';
-  const userAvatar = user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?._id || 'default'}`;
+  useEffect(() => {
+    setMounted(true);
+    // Check local storage for user data if not in Redux
+    if (!user) {
+      const storedUser = authService.getStoredUser();
+      if (storedUser) {
+        setLocalUser(storedUser);
+      }
+    }
+  }, [user]);
+  
+  // Get user data with fallback, prioritizing Redux state over local storage
+  const activeUser = user || localUser;
+  const userDisplayName = activeUser?.username || 'User';
+  const userAvatar = activeUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${activeUser?._id || 'default'}`;
   const userInitial = userDisplayName[0]?.toUpperCase() || 'U';
   
   // Popular categories
@@ -34,11 +57,15 @@ export function LeftSidebar() {
     return pathname === `/category/${category.toLowerCase()}`;
   };
   
+  if (!mounted) {
+    return null;
+  }
+  
   return (
     <div className="space-y-4">
       <Card>
         <CardContent className="p-4">
-          {isAuthenticated ? (
+          {isAuthenticated && activeUser ? (
             <div className="flex items-center gap-3 mb-6">
               <Avatar className="h-12 w-12">
                 <AvatarImage src={userAvatar} alt={userDisplayName} />
@@ -47,6 +74,9 @@ export function LeftSidebar() {
               <div>
                 <h3 className="font-medium">{userDisplayName}</h3>
                 <p className="text-sm text-muted-foreground">@{userDisplayName.toLowerCase()}</p>
+                {activeUser.email && (
+                  <p className="text-xs text-muted-foreground">{activeUser.email}</p>
+                )}
               </div>
             </div>
           ) : (

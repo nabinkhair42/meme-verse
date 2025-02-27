@@ -44,13 +44,15 @@ const TemplateLoadingState = () => (
 );
 
 export function TemplateSelector({
-  templates,
+  templates = [],
   selectedTemplate,
   isLoading,
   searchQuery,
   onSearchChange,
   onSelectTemplate
 }: TemplateSelectorProps) {
+  const safeTemplates = Array.isArray(templates) ? templates : [];
+
   return (
     <Card className="border-2">
       <CardHeader className="space-y-4 pb-4">
@@ -66,7 +68,7 @@ export function TemplateSelector({
         </div>
         {searchQuery && (
           <p className="text-sm text-muted-foreground">
-            {templates.length} templates found
+            {safeTemplates.length} templates found
           </p>
         )}
       </CardHeader>
@@ -82,14 +84,14 @@ export function TemplateSelector({
               Array.from({ length: 6 }).map((_, i) => (
                 <TemplateLoadingState key={i} />
               ))
-            ) : templates.length === 0 ? (
+            ) : safeTemplates.length === 0 ? (
               <div className="col-span-2 text-center py-8">
                 <ImageIcon className="mx-auto h-12 w-12 text-muted-foreground/30 mb-3" />
                 <h3 className="text-lg font-medium mb-2">No templates found</h3>
                 <p className="text-sm text-muted-foreground">Try a different search term</p>
               </div>
             ) : (
-              templates.map((template) => (
+              safeTemplates.map((template) => (
                 <TemplateCard
                   key={template.id}
                   template={template}

@@ -7,7 +7,7 @@ import { AppDispatch, RootState } from "@/redux/store";
 import { imgflipService, memeService } from "@/services/api";
 import { MemeTemplate, TextElement } from "@/types/meme";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
@@ -53,11 +53,19 @@ export default function GeneratePage() {
 
   // Template management
   const [templates, setTemplates] = useState<MemeTemplate[]>([]);
-  const [filteredTemplates, setFilteredTemplates] = useState<MemeTemplate[]>(
-    []
-  );
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Compute filtered templates without state
+  const filteredTemplates = useMemo(() => {
+    if (!templates || templates.length === 0) return [];
+    if (!searchQuery.trim()) return templates;
+    
+    const query = searchQuery.toLowerCase();
+    return templates.filter((template) =>
+      template.name.toLowerCase().includes(query)
+    );
+  }, [searchQuery, templates]);
 
   // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null!);
@@ -110,7 +118,6 @@ export default function GeneratePage() {
               "Failed to load meme templates. Using fallback templates."
             );
             setTemplates(fallbackTemplates);
-            setFilteredTemplates(fallbackTemplates);
             return;
           }
 
@@ -121,26 +128,22 @@ export default function GeneratePage() {
             console.error("No valid templates found");
             toast.error("No valid templates found. Using fallback templates.");
             setTemplates(fallbackTemplates);
-            setFilteredTemplates(fallbackTemplates);
             return;
           }
 
           console.log(`Loaded ${validTemplates.length} valid templates`);
           setTemplates(validTemplates);
-          setFilteredTemplates(validTemplates);
         } catch (error) {
           console.error("Error fetching templates:", error);
           toast.error(
             "Failed to load meme templates. Using fallback templates."
           );
           setTemplates(fallbackTemplates);
-          setFilteredTemplates(fallbackTemplates);
         }
       } catch (error) {
         console.error("Unexpected error in fetchTemplates:", error);
         toast.error("An unexpected error occurred");
         setTemplates([]);
-        setFilteredTemplates([]);
       } finally {
         setIsLoadingTemplates(false);
       }
@@ -148,23 +151,6 @@ export default function GeneratePage() {
 
     fetchTemplates();
   }, []);
-
-  // Filter templates based on search
-  useEffect(() => {
-    if (!templates || templates.length === 0) return;
-
-    if (!searchQuery.trim()) {
-      setFilteredTemplates(templates);
-      return;
-    }
-
-    const query = searchQuery.toLowerCase();
-    const filtered = templates.filter((template) =>
-      template.name.toLowerCase().includes(query)
-    );
-
-    setFilteredTemplates(filtered);
-  }, [searchQuery, templates]);
 
   // Template selection handler
   const handleSelectTemplate = (template: MemeTemplate) => {

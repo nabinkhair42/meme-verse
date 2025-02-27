@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/sheet";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState, AppDispatch } from "@/redux/store";
-import { logout } from "@/redux/features/auth/authSlice";
+import { logout, login, setUser } from "@/redux/features/auth/authSlice";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   DropdownMenu,
@@ -30,6 +30,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { FaFire, FaSearch } from "react-icons/fa";
+import { authService } from "@/services/api";
+
+interface User {
+  _id: string;
+  username: string;
+  email: string;
+  avatar?: string;
+}
 
 // Define routes outside of the component to ensure consistent rendering
 const routes = [
@@ -79,32 +87,52 @@ export function Navbar() {
   const dispatch = useDispatch<AppDispatch>();
   const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
   
-  // Use state with useEffect to avoid hydration mismatch
   const [mounted, setMounted] = useState(false);
+  const [localUser, setLocalUser] = useState<User | null>(null);
   
   useEffect(() => {
     setMounted(true);
   }, []);
   
-  // Add a useEffect to check localStorage directly
+  // Add a useEffect to validate token and update auth state
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('token');
-      const storedUser = localStorage.getItem('user');
-      
-      // If we have a token and user data but not authenticated in Redux
-      if (token && storedUser && !isAuthenticated) {
-        // Parse the stored user data
-        try {
-          const userData = JSON.parse(storedUser);
-          // You might want to dispatch an action to update the auth state
-          // This depends on your auth slice structure
-        } catch (error) {
-          console.error('Error parsing stored user data:', error);
+    const validateAuth = async () => {
+      if (typeof window !== 'undefined') {
+        const token = localStorage.getItem('token');
+        const storedUser = localStorage.getItem('user');
+        
+        if (token && storedUser && !isAuthenticated) {
+          try {
+            // Parse stored user data
+            const parsedUser = JSON.parse(storedUser);
+            setLocalUser(parsedUser);
+            
+            // Validate token with backend
+            const validatedUser = await authService.validateToken();
+            if (validatedUser) {
+              // Update Redux state with validated user data
+              dispatch(setUser({
+                token,
+                user: validatedUser
+              }));
+            } else {
+              // Clear invalid data
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+              setLocalUser(null);
+            }
+          } catch (error) {
+            console.error('Error validating auth:', error);
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setLocalUser(null);
+          }
         }
       }
-    }
-  }, [isAuthenticated]);
+    };
+
+    validateAuth();
+  }, [dispatch, isAuthenticated]);
   
   const handleLogout = async () => {
     try {
@@ -119,11 +147,13 @@ export function Navbar() {
     }
   };
   
-  // Get user data with fallback
-  const userDisplayName = user?.username || 'User';
-  const userAvatar = user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?._id || 'default'}`;
+  // Update user data fallback to use localUser as well
+  const activeUser = user || localUser;
+  const userDisplayName = activeUser?.username || 'User';
+  const userAvatar = activeUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${activeUser?._id || 'default'}`;
   const userInitial = userDisplayName[0]?.toUpperCase() || 'U';
   
+  console.log("CUrrent User",activeUser);
   // Only render the full component after mounting on the client
   if (!mounted) {
     return (
@@ -284,9 +314,9 @@ export function Navbar() {
                     {userDisplayName && (
                       <p className="font-medium text-sm">{userDisplayName}</p>
                     )}
-                    {user?.email && (
+                    {activeUser?.email && (
                       <p className="truncate text-xs text-muted-foreground">
-                        {user.email}
+                        {activeUser.email}
                       </p>
                     )}
                   </div>
