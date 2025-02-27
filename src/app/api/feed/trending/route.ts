@@ -26,7 +26,6 @@ function generateMockMemes(count: number, period: string, userId?: string) {
         const randomDate = new Date(minDate.getTime() + Math.random() * (now.getTime() - minDate.getTime()));
         
         memes.push({
-            _id: id,
             id: id,
             title: `Mock Trending Meme ${i + 1}`,
             description: `This is a mock meme for development when MongoDB is unavailable`,

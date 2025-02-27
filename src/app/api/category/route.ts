@@ -57,8 +57,7 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
     
     // Get total count
-    const total = await db.collection("memes").countDocuments(query);
-    
+
     // Get memes
     const memes = await db.collection("memes")
       .find(query)
@@ -86,12 +85,12 @@ export async function GET(request: NextRequest) {
       
       savedMemes = savedMemesData.map(saved => saved.memeId);
     }
-    
     // Add like and save status to memes
     const memesWithStatus = memes.map(meme => ({
       ...meme,
+      id: meme._id.toString(),
       isLiked: likedMemes.includes(meme._id.toString()),
-      isSaved: savedMemes.includes(meme._id.toString())
+      isSaved: savedMemes.includes(meme._id.toString()),
     }));
     
     return NextResponse.json(
