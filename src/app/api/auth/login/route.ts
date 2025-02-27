@@ -41,9 +41,13 @@ export async function POST(request: NextRequest) {
     // Generate token
     const token = generateToken(user);
     
+    const responseWithToken = {
+      user,
+      token
+    };
     // Set HTTP-only cookie for better security
     const response = NextResponse.json(
-      successResponse(user, "Login successful", 200),
+      successResponse(responseWithToken, "Login successful", 200),
       { status: 200 }
     );
     

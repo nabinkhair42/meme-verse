@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { userModel } from "@/models";
 import { successResponse, errorResponse } from "@/lib/apiResponse";
+import { generateToken } from "@/lib/auth";
 
 /**
  * POST /api/auth/register - Register a new user
@@ -47,9 +48,14 @@ export async function POST(request: NextRequest) {
       if (newUser.password) {
         delete newUser.password;
       }
-      
+      const token = generateToken(newUser);
+      const responseWithToken = {
+        user: newUser,
+        token
+      };
+
       return NextResponse.json(
-        successResponse(newUser, "User registered successfully", 201),
+        successResponse(responseWithToken, "User registered successfully", 201),
         { status: 201 }
       );
     } catch (error: any) {
